@@ -48,7 +48,7 @@ export default function LandingPage() {
                 <Link href="/auth">Masuk</Link>
               </Button>
               <Button asChild>
-                <Link href="/auth">Mulai Sekarang</Link>
+                <Link href="/auth">Mulai</Link>
               </Button>
             </div>
           </div>
