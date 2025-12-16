@@ -11,7 +11,7 @@ export default async function AuthPage() {
   }
 
   return (
-    <div>
+    <div className="p-2">
       <LoginForm />
     </div>
   );
