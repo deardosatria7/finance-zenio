@@ -9,6 +9,7 @@ import { ButtonAddNewPengeluaran } from "./pengeluaran/components/add-new-pengel
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, Wallet } from "lucide-react";
 import Link from "next/link";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default async function DashboardPage() {
   const session = await getUserSessionSSR();
@@ -36,24 +37,6 @@ export default async function DashboardPage() {
     0
   );
   const saldo = totalPemasukan - totalPengeluaran;
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  // Format date
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat("id-ID", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }).format(new Date(date));
-  };
 
   // Get recent transactions (5 most recent from each)
   const recentPemasukan = [...pemasukanAll]

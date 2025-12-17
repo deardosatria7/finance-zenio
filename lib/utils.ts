@@ -14,6 +14,15 @@ export function formatRupiah(value: string) {
   }).format(Number(value));
 }
 
+// Format currency
+export const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(amount);
+};
+
 /**Function untuk format timestampz */
 export function formatDate(date: Date) {
   return new Intl.DateTimeFormat("id-ID", {

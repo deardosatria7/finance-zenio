@@ -9,6 +9,7 @@ import {
   Shield,
   Sparkles,
 } from "lucide-react";
+import CountUp from "@/components/CountUp";
 
 export default function LandingPage() {
   return (
@@ -101,7 +102,17 @@ export default function LandingPage() {
                     </div>
                   </div>
                   <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mb-2">
-                    Rp 15.250.000
+                    Rp{" "}
+                    <CountUp
+                      from={0}
+                      to={15250000}
+                      separator="."
+                      direction="up"
+                      duration={0.5}
+                      className="count-up-text"
+                      onStart={undefined}
+                      onEnd={undefined}
+                    />
                   </div>
                   <div className="text-xs text-muted-foreground">
                     24 transaksi bulan ini
@@ -114,7 +125,17 @@ export default function LandingPage() {
                       <ArrowDownRight className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                     </div>
                     <div className="text-xl font-bold text-rose-600 dark:text-rose-400 mb-1">
-                      Rp 8.5jt
+                      Rp{" "}
+                      <CountUp
+                        from={0}
+                        to={8500000}
+                        separator="."
+                        direction="up"
+                        duration={0.5}
+                        className="count-up-text"
+                        onStart={undefined}
+                        onEnd={undefined}
+                      />
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Pengeluaran
@@ -126,7 +147,17 @@ export default function LandingPage() {
                       <Wallet className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="text-xl font-bold text-blue-600 dark:text-blue-400 mb-1">
-                      Rp 6.7jt
+                      Rp{" "}
+                      <CountUp
+                        from={0}
+                        to={6700000}
+                        separator="."
+                        direction="up"
+                        duration={0.5}
+                        className="count-up-text"
+                        onStart={undefined}
+                        onEnd={undefined}
+                      />
                     </div>
                     <div className="text-xs text-muted-foreground">Saldo</div>
                   </Card>
