@@ -1,10 +1,10 @@
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
+// lib/rate-limiter.ts
+import { RateLimiterRedis } from "rate-limiter-flexible";
+import { redis } from "./redis";
 
-export const redis = Redis.fromEnv();
-
-export const rateLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.fixedWindow(5, "10 s"), // 5 request / 10 detik
-  analytics: true,
+export const rateLimiter = new RateLimiterRedis({
+  storeClient: redis,
+  keyPrefix: "rate_limit",
+  points: 5, // jumlah request
+  duration: 10, // per 10 detik
 });

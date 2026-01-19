@@ -14,13 +14,14 @@ import { eq } from "drizzle-orm";
 import { rateLimiter } from "../rate-limiter";
 
 export async function AddNewPemasukan(
-  data: z.infer<typeof PemasukanFormSchema>
+  data: z.infer<typeof PemasukanFormSchema>,
 ) {
   const session = await getUserSessionSSR();
 
   // rate limit per user
-  const { success } = await rateLimiter.limit(`pemasukan_${session.user.id}`);
-  if (!success) {
+  try {
+    await rateLimiter.consume(`pemasukan_${session.user.id}`);
+  } catch {
     throw new Error("Terlalu banyak request. Coba lagi nanti.");
   }
 
@@ -75,13 +76,14 @@ export async function DeletePemasukan(pemasukan_id: number) {
 }
 
 export async function AddNewPengeluaran(
-  data: z.infer<typeof PengeluaranFormSchema>
+  data: z.infer<typeof PengeluaranFormSchema>,
 ) {
   const session = await getUserSessionSSR();
 
   // rate limit per user
-  const { success } = await rateLimiter.limit(`pengeluaran_${session.user.id}`);
-  if (!success) {
+  try {
+    await rateLimiter.consume(`pengeluaran_${session.user.id}`);
+  } catch {
     throw new Error("Terlalu banyak request. Coba lagi nanti.");
   }
 
@@ -94,7 +96,7 @@ export async function AddNewPengeluaran(
 }
 
 export async function EditPengeluaran(
-  data: z.infer<typeof EditPengeluaranSchema>
+  data: z.infer<typeof EditPengeluaranSchema>,
 ) {
   const session = await getUserSessionSSR();
 
