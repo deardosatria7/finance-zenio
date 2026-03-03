@@ -130,13 +130,20 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const token = process.env.OPENCLAW_ACCESS_TOKEN!;
+    const adminUserId = process.env.ADMIN_USER_ID!;
 
     if (!validateToken(req, token)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const allPengeluaran = await db.select().from(pengeluaran);
-    const allPemasukan = await db.select().from(pemasukan);
+    const allPengeluaran = await db
+      .select()
+      .from(pengeluaran)
+      .where(eq(pengeluaran.userId, adminUserId));
+    const allPemasukan = await db
+      .select()
+      .from(pemasukan)
+      .where(eq(pemasukan.userId, adminUserId));
 
     return NextResponse.json({
       pemasukan: allPemasukan,
