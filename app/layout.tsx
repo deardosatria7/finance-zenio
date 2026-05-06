@@ -10,8 +10,61 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Finance Tracker by Zenio",
-  description: "Aplikasi sederhana untuk mencatat pemasukan dan pengeluaran",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL!
+  ),
+  title: {
+    default: "Finance Zenio – Catat Keuangan Pribadi",
+    template: "%s | Finance Zenio",
+  },
+  description:
+    "Finance Zenio adalah aplikasi pencatatan keuangan pribadi yang mudah digunakan. Catat pemasukan dan pengeluaran, pantau saldo, dan kelola anggaran harianmu dengan cepat.",
+  keywords: [
+    "aplikasi keuangan",
+    "catat keuangan",
+    "pencatatan pemasukan pengeluaran",
+    "finance tracker",
+    "manajemen keuangan pribadi",
+    "anggaran harian",
+    "zenio",
+  ],
+  authors: [{ name: "Zenio" }],
+  creator: "Zenio",
+  openGraph: {
+    type: "website",
+    locale: "id_ID",
+    url: "/",
+    siteName: "Finance Zenio",
+    title: "Finance Zenio – Catat Keuangan Pribadi",
+    description:
+      "Catat pemasukan dan pengeluaran dengan mudah. Pantau saldo dan kelola anggaran harianmu bersama Finance Zenio.",
+    images: [
+      {
+        url: "/og-image.webp",
+        width: 1200,
+        height: 630,
+        alt: "Finance Zenio – Aplikasi Pencatatan Keuangan Pribadi",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Finance Zenio – Catat Keuangan Pribadi",
+    description:
+      "Catat pemasukan dan pengeluaran dengan mudah. Pantau saldo dan kelola anggaran harianmu bersama Finance Zenio.",
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({
