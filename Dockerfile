@@ -21,6 +21,15 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 # Disable Next.js telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Placeholder vars so modules that parse URLs at init time don't crash during
+# static page collection — real values are injected at container runtime
+ENV BETTER_AUTH_URL=http://localhost:3000
+ENV BETTER_AUTH_SECRET=build-placeholder
+ENV DATABASE_URL=postgresql://placeholder:5432/placeholder
+ENV REDIS_URL=redis://placeholder:6379
+ENV AUTH_GOOGLE_ID=placeholder
+ENV AUTH_GOOGLE_SECRET=placeholder
+
 RUN npm run build
 
 # ─── Stage 3: Production runner ───────────────────────────────────────────────
