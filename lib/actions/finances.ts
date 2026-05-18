@@ -11,7 +11,7 @@ import { getUserSessionSSR } from "./sessions";
 import { db } from "@/db";
 import { pemasukan, pengeluaran } from "@/db/schema";
 import { and, eq, gte, lt } from "drizzle-orm";
-import { rateLimiter } from "../rate-limiter";
+import { getRateLimiter } from "../rate-limiter";
 
 export async function AddNewPemasukan(
   data: z.infer<typeof PemasukanFormSchema>,
@@ -19,7 +19,7 @@ export async function AddNewPemasukan(
   const session = await getUserSessionSSR();
 
   try {
-    await rateLimiter.consume(`pemasukan_${session.user.id}`);
+    await getRateLimiter().consume(`pemasukan_${session.user.id}`);
   } catch {
     throw new Error("Terlalu banyak request. Coba lagi nanti.");
   }
@@ -77,7 +77,7 @@ export async function AddNewPengeluaran(
   const session = await getUserSessionSSR();
 
   try {
-    await rateLimiter.consume(`pengeluaran_${session.user.id}`);
+    await getRateLimiter().consume(`pengeluaran_${session.user.id}`);
   } catch {
     throw new Error("Terlalu banyak request. Coba lagi nanti.");
   }

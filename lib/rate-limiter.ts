@@ -1,10 +1,12 @@
 // lib/rate-limiter.ts
 import { RateLimiterRedis } from "rate-limiter-flexible";
-import { redis } from "./redis";
+import { getRedis } from "./redis";
 
-export const rateLimiter = new RateLimiterRedis({
-  storeClient: redis,
-  keyPrefix: "rate_limit",
-  points: 5, // jumlah request
-  duration: 10, // per 10 detik
-});
+export function getRateLimiter() {
+  return new RateLimiterRedis({
+    storeClient: getRedis(),
+    keyPrefix: "rate_limit",
+    points: 5, // jumlah request
+    duration: 10, // per 10 detik
+  });
+}
