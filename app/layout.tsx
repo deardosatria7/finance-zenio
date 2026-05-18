@@ -10,9 +10,6 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL!
-  ),
   title: {
     default: "Finance Zenio – Catat Keuangan Pribadi",
     template: "%s | Finance Zenio",
