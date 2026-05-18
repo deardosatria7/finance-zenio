@@ -15,6 +15,13 @@
       "when": 1765767615344,
       "tag": "0001_orange_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1747526400000,
+      "tag": "0002_add_kategori",
+      "breakpoints": true
     }
   ]
 }

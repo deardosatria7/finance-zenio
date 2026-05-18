@@ -12,6 +12,7 @@ import {
 import { formatDate, formatRupiah } from "@/lib/utils";
 import { ButtonEditPengeluaran } from "./edit-pengeluaran";
 import { ButtonDeletePengeluaran } from "./delete-pengeluaran-button";
+import { Badge } from "@/components/ui/badge";
 
 interface PengeluaranTableProps {
   data: Pengeluaran[];
@@ -19,12 +20,15 @@ interface PengeluaranTableProps {
 
 export default function PengeluaranTable({ data }: PengeluaranTableProps) {
   return (
-    <div className="rounded-lg border bg-white text-neutral-900border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800">
+    <div className="rounded-lg border bg-white text-neutral-900 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800">
       <Table>
         <TableHeader>
           <TableRow className="border-b border-neutral-200 dark:border-neutral-800">
             <TableHead className="text-neutral-600 dark:text-neutral-400">
               Nama Pengeluaran
+            </TableHead>
+            <TableHead className="text-neutral-600 dark:text-neutral-400">
+              Kategori
             </TableHead>
             <TableHead className="text-neutral-600 dark:text-neutral-400">
               Tanggal
@@ -42,7 +46,7 @@ export default function PengeluaranTable({ data }: PengeluaranTableProps) {
           {data.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={4}
+                colSpan={5}
                 className="py-8 text-center text-neutral-500 dark:text-neutral-400"
               >
                 Belum ada data pengeluaran
@@ -58,6 +62,10 @@ export default function PengeluaranTable({ data }: PengeluaranTableProps) {
                   {item.namaPengeluaran}
                 </TableCell>
 
+                <TableCell>
+                  <Badge variant="secondary">{item.kategori}</Badge>
+                </TableCell>
+
                 <TableCell className="text-neutral-500 dark:text-neutral-400">
                   {formatDate(item.createdAt)}
                 </TableCell>
@@ -71,6 +79,7 @@ export default function PengeluaranTable({ data }: PengeluaranTableProps) {
                       id: item.id,
                       nama_pengeluaran: item.namaPengeluaran,
                       nominal: Number(item.nominal),
+                      kategori: item.kategori,
                     }}
                   />
                   <ButtonDeletePengeluaran pengeluaran_id={item.id} />

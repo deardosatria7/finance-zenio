@@ -5,14 +5,13 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { EditPemasukanSchema } from "@/lib/types";
+import { EditPemasukanSchema, KATEGORI_PEMASUKAN } from "@/lib/types";
 
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 
 import { Button } from "@/components/ui/button";
@@ -27,7 +26,14 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { AddNewPemasukan, EditPemasukan } from "@/lib/actions/finances";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EditPemasukan } from "@/lib/actions/finances";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
@@ -57,7 +63,6 @@ export function ButtonEditPemasukan({
           <DialogHeader>
             <DialogTitle>Edit Pemasukan</DialogTitle>
           </DialogHeader>
-
           <EditPemasukanForm data={data} onSuccess={() => setOpen(false)} />
         </DialogContent>
       </Dialog>
@@ -74,7 +79,6 @@ export function EditPemasukanForm({ data, onSuccess }: EditPemasukanFormProps) {
   });
 
   async function onSubmit(values: z.infer<typeof EditPemasukanSchema>) {
-    // TODO: API / server action
     try {
       setLoadingStates((prev) => ({ ...prev, isSubmitting: true }));
       await EditPemasukan(values);
@@ -96,7 +100,7 @@ export function EditPemasukanForm({ data, onSuccess }: EditPemasukanFormProps) {
         <FormDescription>
           Isi form berikut untuk mengedit data pemasukan.
         </FormDescription>
-        {/* Nama Pemasukan */}
+
         <FormField
           control={form.control}
           name="nama_pemasukan"
@@ -111,7 +115,31 @@ export function EditPemasukanForm({ data, onSuccess }: EditPemasukanFormProps) {
           )}
         />
 
-        {/* Nominal */}
+        <FormField
+          control={form.control}
+          name="kategori"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Kategori</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih kategori" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {KATEGORI_PEMASUKAN.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {k}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="nominal"
@@ -137,7 +165,7 @@ export function EditPemasukanForm({ data, onSuccess }: EditPemasukanFormProps) {
           className="w-full"
           disabled={loadingStates.isSubmitting}
         >
-          {loadingStates.isSubmitting ? "Meyimpan..." : "Simpan"}
+          {loadingStates.isSubmitting ? "Menyimpan..." : "Simpan"}
         </Button>
       </form>
     </Form>

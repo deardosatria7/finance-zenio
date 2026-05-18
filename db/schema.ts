@@ -81,7 +81,7 @@ export const verification = pgTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)]
 );
 
-// TABLE PENGELUARAN (ID, NAMA_PENGELUARAN, NOMINAL, CREATED_AT, ID_USER)
+// TABLE PENGELUARAN (ID, NAMA_PENGELUARAN, NOMINAL, CREATED_AT, ID_USER, KATEGORI)
 export const pengeluaran = pgTable("pengeluaran", {
   id: serial("id").primaryKey(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -90,9 +90,10 @@ export const pengeluaran = pgTable("pengeluaran", {
     .references(() => user.id, { onDelete: "cascade" }),
   namaPengeluaran: text("nama_pengeluaran").notNull(),
   nominal: numeric("nominal", { precision: 15, scale: 2 }).notNull(),
+  kategori: text("kategori").notNull().default("Lainnya"),
 });
 
-// TABLE PEMASUKAN (ID, NAMA_PEMASUKAN, NOMINAL, CREATED_AT, ID_USER)
+// TABLE PEMASUKAN (ID, NAMA_PEMASUKAN, NOMINAL, CREATED_AT, ID_USER, KATEGORI)
 export const pemasukan = pgTable("pemasukan", {
   id: serial("id").primaryKey(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -101,6 +102,7 @@ export const pemasukan = pgTable("pemasukan", {
     .references(() => user.id, { onDelete: "cascade" }),
   namaPemasukan: text("nama_pemasukan").notNull(),
   nominal: numeric("nominal", { precision: 15, scale: 2 }).notNull(),
+  kategori: text("kategori").notNull().default("Lainnya"),
 });
 
 export const userRelations = relations(user, ({ many }) => ({

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { PemasukanFormSchema } from "@/lib/types";
+import { KATEGORI_PEMASUKAN, PemasukanFormSchema } from "@/lib/types";
 
 import {
   Dialog,
@@ -26,6 +26,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AddNewPemasukan } from "@/lib/actions/finances";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -82,11 +89,11 @@ export function AddNewPemasukanForm({ onSuccess }: AddNewPemasukanFormProps) {
     defaultValues: {
       nama_pemasukan: "",
       nominal: 0,
+      kategori: "Lainnya",
     },
   });
 
   async function onSubmit(values: z.infer<typeof PemasukanFormSchema>) {
-    // TODO: API / server action
     try {
       setLoadingStates((prev) => ({ ...prev, isSubmitting: true }));
       await AddNewPemasukan(values);
@@ -108,7 +115,7 @@ export function AddNewPemasukanForm({ onSuccess }: AddNewPemasukanFormProps) {
         <FormDescription>
           Isi form berikut untuk menambahkan data pemasukan baru.
         </FormDescription>
-        {/* Nama Pemasukan */}
+
         <FormField
           control={form.control}
           name="nama_pemasukan"
@@ -123,7 +130,31 @@ export function AddNewPemasukanForm({ onSuccess }: AddNewPemasukanFormProps) {
           )}
         />
 
-        {/* Nominal */}
+        <FormField
+          control={form.control}
+          name="kategori"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Kategori</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih kategori" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {KATEGORI_PEMASUKAN.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {k}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="nominal"
@@ -149,7 +180,7 @@ export function AddNewPemasukanForm({ onSuccess }: AddNewPemasukanFormProps) {
           className="w-full"
           disabled={loadingStates.isSubmitting}
         >
-          {loadingStates.isSubmitting ? "Meyimpan..." : "Simpan"}
+          {loadingStates.isSubmitting ? "Menyimpan..." : "Simpan"}
         </Button>
       </form>
     </Form>

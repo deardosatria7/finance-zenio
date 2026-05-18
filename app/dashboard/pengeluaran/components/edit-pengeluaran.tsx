@@ -5,14 +5,13 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { EditPengeluaranSchema } from "@/lib/types";
+import { EditPengeluaranSchema, KATEGORI_PENGELUARAN } from "@/lib/types";
 
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +26,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EditPengeluaran } from "@/lib/actions/finances";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -57,7 +63,6 @@ export function ButtonEditPengeluaran({
           <DialogHeader>
             <DialogTitle>Edit Pengeluaran</DialogTitle>
           </DialogHeader>
-
           <EditPengeluaranForm data={data} onSuccess={() => setOpen(false)} />
         </DialogContent>
       </Dialog>
@@ -77,7 +82,6 @@ export function EditPengeluaranForm({
   });
 
   async function onSubmit(values: z.infer<typeof EditPengeluaranSchema>) {
-    // TODO: API / server action
     try {
       setLoadingStates((prev) => ({ ...prev, isSubmitting: true }));
       await EditPengeluaran(values);
@@ -99,7 +103,7 @@ export function EditPengeluaranForm({
         <FormDescription>
           Isi form berikut untuk mengedit data pengeluaran.
         </FormDescription>
-        {/* Nama Pengeluaran */}
+
         <FormField
           control={form.control}
           name="nama_pengeluaran"
@@ -107,14 +111,38 @@ export function EditPengeluaranForm({
             <FormItem>
               <FormLabel>Nama Pengeluaran</FormLabel>
               <FormControl>
-                <Input placeholder="e.g. Gaji bulanan" {...field} />
+                <Input placeholder="e.g. Pulsa dan internet" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        {/* Nominal */}
+        <FormField
+          control={form.control}
+          name="kategori"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Kategori</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih kategori" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {KATEGORI_PENGELUARAN.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {k}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="nominal"
@@ -140,7 +168,7 @@ export function EditPengeluaranForm({
           className="w-full"
           disabled={loadingStates.isSubmitting}
         >
-          {loadingStates.isSubmitting ? "Meyimpan..." : "Simpan"}
+          {loadingStates.isSubmitting ? "Menyimpan..." : "Simpan"}
         </Button>
       </form>
     </Form>

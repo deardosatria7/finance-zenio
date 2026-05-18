@@ -3,20 +3,22 @@ import { db } from "@/db";
 import { pemasukan, pengeluaran } from "@/db/schema";
 import { getUserSessionSSR } from "@/lib/actions/sessions";
 import type { Pemasukan, Pengeluaran } from "@/lib/types";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import { ButtonAddNewPemasukan } from "./pemasukan/components/add-new-pemasukan";
 import { ButtonAddNewPengeluaran } from "./pengeluaran/components/add-new-pengeluaran";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, Wallet } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import FinanceChart from "@/components/finance-chart";
+
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
 
 export default async function DashboardPage() {
   const session = await getUserSessionSSR();
   let pengeluaranAll: Pengeluaran[] = [];
   let pemasukanAll: Pemasukan[] = [];
 
-  // fetch all data pengeluaran and pemasukan for this user
   pengeluaranAll = await db
     .select()
     .from(pengeluaran)
@@ -27,7 +29,6 @@ export default async function DashboardPage() {
     .from(pemasukan)
     .where(eq(pemasukan.userId, session.user.id));
 
-  // Calculate totals
   const totalPemasukan = pemasukanAll.reduce(
     (sum, item) => sum + Number.parseFloat(item.nominal),
     0
@@ -38,19 +39,49 @@ export default async function DashboardPage() {
   );
   const saldo = totalPemasukan - totalPengeluaran;
 
-  // Get recent transactions (5 most recent from each)
   const recentPemasukan = [...pemasukanAll]
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
   const recentPengeluaran = [...pengeluaranAll]
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
+
+  // Build monthly data for last 6 months
+  const now = new Date();
+  const monthlyData = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    const nextD = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+
+    const masuk = pemasukanAll
+      .filter((p) => {
+        const t = new Date(p.createdAt);
+        return t >= d && t < nextD;
+      })
+      .reduce((s, p) => s + Number(p.nominal), 0);
+
+    const keluar = pengeluaranAll
+      .filter((p) => {
+        const t = new Date(p.createdAt);
+        return t >= d && t < nextD;
+      })
+      .reduce((s, p) => s + Number(p.nominal), 0);
+
+    return {
+      bulan: MONTH_LABELS[d.getMonth()],
+      pemasukan: masuk,
+      pengeluaran: keluar,
+    };
+  });
+
+  // Category breakdown for pengeluaran
+  const categoryMap: Record<string, number> = {};
+  for (const p of pengeluaranAll) {
+    const k = p.kategori || "Lainnya";
+    categoryMap[k] = (categoryMap[k] ?? 0) + Number(p.nominal);
+  }
+  const categoryData = Object.entries(categoryMap)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
 
   return (
     <div className="min-h-screen bg-background">
@@ -70,7 +101,6 @@ export default async function DashboardPage() {
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-3 mb-8">
-          {/* Pemasukan Card */}
           <Link href="/dashboard/pemasukan" className="block">
             <Card className="border-emerald-200 dark:border-emerald-900 cursor-pointer hover:shadow-md transition hover:scale-105">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -92,7 +122,6 @@ export default async function DashboardPage() {
             </Card>
           </Link>
 
-          {/* Pengeluaran Card */}
           <Link href="/dashboard/pengeluaran" className="block">
             <Card className="border-rose-200 dark:border-rose-900 cursor-pointer hover:shadow-md transition hover:scale-105">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -114,7 +143,6 @@ export default async function DashboardPage() {
             </Card>
           </Link>
 
-          {/* Saldo Card */}
           <Card className="border-blue-200 dark:border-blue-900 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -141,9 +169,13 @@ export default async function DashboardPage() {
           </Card>
         </div>
 
-        {/* Transactions Section */}
+        {/* Charts */}
+        <div className="mb-8">
+          <FinanceChart monthlyData={monthlyData} categoryData={categoryData} />
+        </div>
+
+        {/* Recent Transactions */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Recent Pemasukan */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg font-semibold">
@@ -164,7 +196,7 @@ export default async function DashboardPage() {
                           {item.namaPemasukan}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {formatDate(item.createdAt)}
+                          {item.kategori} · {formatDate(item.createdAt)}
                         </p>
                       </div>
                       <div className="text-right ml-4">
@@ -184,7 +216,6 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Recent Pengeluaran */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg font-semibold">
@@ -205,7 +236,7 @@ export default async function DashboardPage() {
                           {item.namaPengeluaran}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {formatDate(item.createdAt)}
+                          {item.kategori} · {formatDate(item.createdAt)}
                         </p>
                       </div>
                       <div className="text-right ml-4">

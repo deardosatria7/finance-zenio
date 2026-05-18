@@ -10,7 +10,7 @@ import { z } from "zod";
 import { getUserSessionSSR } from "./sessions";
 import { db } from "@/db";
 import { pemasukan, pengeluaran } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import { rateLimiter } from "../rate-limiter";
 
 export async function AddNewPemasukan(
@@ -18,25 +18,23 @@ export async function AddNewPemasukan(
 ) {
   const session = await getUserSessionSSR();
 
-  // rate limit per user
   try {
     await rateLimiter.consume(`pemasukan_${session.user.id}`);
   } catch {
     throw new Error("Terlalu banyak request. Coba lagi nanti.");
   }
 
-  // add new row to pemasukan
   await db.insert(pemasukan).values({
     userId: session.user.id,
     nominal: data.nominal.toFixed(2),
     namaPemasukan: data.nama_pemasukan,
+    kategori: data.kategori,
   });
 }
 
 export async function EditPemasukan(data: z.infer<typeof EditPemasukanSchema>) {
   const session = await getUserSessionSSR();
 
-  // check id user untuk pemasukan id yang sama
   const [user_id] = await db
     .select({ user_id: pemasukan.userId })
     .from(pemasukan)
@@ -47,12 +45,12 @@ export async function EditPemasukan(data: z.infer<typeof EditPemasukanSchema>) {
     throw new Error("Not allowed!");
   }
 
-  // edit pemasukan
   await db
     .update(pemasukan)
     .set({
       nominal: data.nominal.toFixed(2),
       namaPemasukan: data.nama_pemasukan,
+      kategori: data.kategori,
     })
     .where(eq(pemasukan.id, data.id));
 }
@@ -60,7 +58,6 @@ export async function EditPemasukan(data: z.infer<typeof EditPemasukanSchema>) {
 export async function DeletePemasukan(pemasukan_id: number) {
   const session = await getUserSessionSSR();
 
-  // check id user untuk pemasukan id yang sama
   const [user_id] = await db
     .select({ user_id: pemasukan.userId })
     .from(pemasukan)
@@ -71,7 +68,6 @@ export async function DeletePemasukan(pemasukan_id: number) {
     throw new Error("Not allowed!");
   }
 
-  // delete pemasukan
   await db.delete(pemasukan).where(eq(pemasukan.id, pemasukan_id));
 }
 
@@ -80,18 +76,17 @@ export async function AddNewPengeluaran(
 ) {
   const session = await getUserSessionSSR();
 
-  // rate limit per user
   try {
     await rateLimiter.consume(`pengeluaran_${session.user.id}`);
   } catch {
     throw new Error("Terlalu banyak request. Coba lagi nanti.");
   }
 
-  // add new row to pengeluaran
   await db.insert(pengeluaran).values({
     userId: session.user.id,
     nominal: data.nominal.toFixed(2),
     namaPengeluaran: data.nama_pengeluaran,
+    kategori: data.kategori,
   });
 }
 
@@ -100,7 +95,6 @@ export async function EditPengeluaran(
 ) {
   const session = await getUserSessionSSR();
 
-  // check id user untuk pengeluaran id yang sama
   const [user_id] = await db
     .select({ user_id: pengeluaran.userId })
     .from(pengeluaran)
@@ -111,12 +105,12 @@ export async function EditPengeluaran(
     throw new Error("Not allowed!");
   }
 
-  // edit pengeluaran
   await db
     .update(pengeluaran)
     .set({
       nominal: data.nominal.toFixed(2),
       namaPengeluaran: data.nama_pengeluaran,
+      kategori: data.kategori,
     })
     .where(eq(pengeluaran.id, data.id));
 }
@@ -124,7 +118,6 @@ export async function EditPengeluaran(
 export async function DeletePengeluaran(pengeluaran_id: number) {
   const session = await getUserSessionSSR();
 
-  // check id user untuk pengeluaran id yang sama
   const [user_id] = await db
     .select({ user_id: pengeluaran.userId })
     .from(pengeluaran)
@@ -135,6 +128,35 @@ export async function DeletePengeluaran(pengeluaran_id: number) {
     throw new Error("Not allowed!");
   }
 
-  // delete pemasukan
   await db.delete(pengeluaran).where(eq(pengeluaran.id, pengeluaran_id));
+}
+
+export async function getExportData(type: "pemasukan" | "pengeluaran", month?: number, year?: number) {
+  const session = await getUserSessionSSR();
+
+  if (type === "pemasukan") {
+    let whereClause = eq(pemasukan.userId, session.user.id);
+    if (month && year) {
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 1);
+      whereClause = and(
+        eq(pemasukan.userId, session.user.id),
+        gte(pemasukan.createdAt, start),
+        lt(pemasukan.createdAt, end),
+      ) as typeof whereClause;
+    }
+    return db.select().from(pemasukan).where(whereClause).orderBy(pemasukan.createdAt);
+  } else {
+    let whereClause = eq(pengeluaran.userId, session.user.id);
+    if (month && year) {
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 1);
+      whereClause = and(
+        eq(pengeluaran.userId, session.user.id),
+        gte(pengeluaran.createdAt, start),
+        lt(pengeluaran.createdAt, end),
+      ) as typeof whereClause;
+    }
+    return db.select().from(pengeluaran).where(whereClause).orderBy(pengeluaran.createdAt);
+  }
 }
