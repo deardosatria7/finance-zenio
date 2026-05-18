@@ -1,58 +1,47 @@
-FROM node:22-slim AS base
+# =========================================
+# Stage 1 — Dependencies
+# =========================================
+FROM node:20-alpine AS deps
 
-# ─── Stage 1: Install dependencies ───────────────────────────────────────────
-FROM base AS deps
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+# Install dependencies
+COPY package.json package-lock.json* ./
 
-# ─── Stage 2: Build ───────────────────────────────────────────────────────────
-FROM base AS builder
+RUN npm install
+
+# =========================================
+# Stage 2 — Builder
+# =========================================
+FROM node:20-alpine AS builder
+
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Environment variables needed at build time only
-ARG NEXT_PUBLIC_APP_URL
-ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
-
-# Disable Next.js telemetry during build
-ENV NEXT_TELEMETRY_DISABLED=1
-
-# Placeholder vars so modules that parse URLs at init time don't crash during
-# static page collection — real values are injected at container runtime
-ENV BETTER_AUTH_URL=http://localhost:3000
-ENV BETTER_AUTH_SECRET=build-placeholder
-ENV DATABASE_URL=postgresql://placeholder:5432/placeholder
-ENV REDIS_URL=redis://placeholder:6379
-ENV AUTH_GOOGLE_ID=placeholder
-ENV AUTH_GOOGLE_SECRET=placeholder
-
+# Build Next.js app
 RUN npm run build
 
-# ─── Stage 3: Production runner ───────────────────────────────────────────────
-FROM base AS runner
+# =========================================
+# Stage 3 — Runner
+# =========================================
+FROM node:20-alpine AS runner
+
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create non-root user for security
-RUN addgroup --system --gid 1001 nodejs \
- && adduser --system --uid 1001 --ingroup nodejs nextjs
-
-# Copy only the standalone output
+# Copy only necessary files
+COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/next.config.* ./
 
-USER nextjs
+# Optional: drizzle config/migrations
+COPY --from=builder /app/drizzle ./drizzle
 
 EXPOSE 3000
 
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
-CMD ["node", "server.js"]
+CMD ["npm", "start"]

@@ -1,23 +1,29 @@
+version: "3.9"
+
 services:
   app:
-    image: finance-zenio:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
-    restart: unless-stopped
+    build: .
+    container_name: next-app
     ports:
       - "3002:3000"
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
-      AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID}
-      AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET}
-      REDIS_URL: ${REDIS_URL}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
-      OPENCLAW_ACCESS_TOKEN: ${OPENCLAW_ACCESS_TOKEN}
-      ADMIN_USER_ID: ${ADMIN_USER_ID}
-    env_file:
-      - .env.production
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/mydb
+      NODE_ENV: production
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16-alpine
+    container_name: postgres-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
