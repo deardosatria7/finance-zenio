@@ -1,8 +1,7 @@
-FROM node:22-alpine AS base
+FROM node:22-slim AS base
 
 # ─── Stage 1: Install dependencies ───────────────────────────────────────────
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -33,7 +32,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs \
- && adduser --system --uid 1001 nextjs
+ && adduser --system --uid 1001 --ingroup nodejs nextjs
 
 # Copy only the standalone output
 COPY --from=builder /app/public ./public
