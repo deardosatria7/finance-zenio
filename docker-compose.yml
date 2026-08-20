@@ -10,8 +10,10 @@ services:
   app:
     build: .
     container_name: finance-zenio
+    # Hanya loopback: cloudflared (service di host) bisa menjangkau,
+    # tapi port tidak terbuka ke jaringan luar.
     ports:
-      - "3002:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       DATABASE_URL: postgresql://postgres:postgres@shared-postgres:5432/zenio_pintarpy
       NODE_ENV: production
@@ -32,7 +34,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: zenio_pintarpy
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

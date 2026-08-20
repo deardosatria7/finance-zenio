@@ -81,8 +81,8 @@ rm -rf ../pintarpy/drizzle && cp -r drizzle ../pintarpy/drizzle
 ### Menjalankan app
 
 ```bash
-cd finance-zenio && npm run dev    # http://localhost:3000
-cd pintarpy      && npm run dev    # http://localhost:3001
+cd pintarpy      && npm run dev    # http://localhost:3000
+cd finance-zenio && npm run dev    # http://localhost:3001
 ```
 
 Seed materi pintarpy: `cd pintarpy && npm run db:seed`

@@ -42,6 +42,6 @@ COPY --from=builder /app/next.config.* ./
 # Optional: drizzle config/migrations
 COPY --from=builder /app/drizzle ./drizzle
 
-EXPOSE 3000
+EXPOSE 3002
 
 CMD ["npm", "start"]
