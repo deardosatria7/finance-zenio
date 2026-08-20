@@ -1,13 +1,20 @@
 import { relations } from "drizzle-orm";
 import {
   pgTable,
+  pgEnum,
   text,
   timestamp,
   boolean,
+  integer,
   index,
+  uniqueIndex,
   numeric,
   serial,
 } from "drizzle-orm/pg-core";
+
+// =====================================================================
+// AUTH (better-auth) — dipakai bersama oleh finance-zenio & pintarpy
+// =====================================================================
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -81,6 +88,10 @@ export const verification = pgTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)]
 );
 
+// =====================================================================
+// FINANCE-ZENIO
+// =====================================================================
+
 // TABLE PENGELUARAN (ID, NAMA_PENGELUARAN, NOMINAL, CREATED_AT, ID_USER, KATEGORI)
 export const pengeluaran = pgTable("pengeluaran", {
   id: serial("id").primaryKey(),
@@ -105,11 +116,75 @@ export const pemasukan = pgTable("pemasukan", {
   kategori: text("kategori").notNull().default("Lainnya"),
 });
 
+// =====================================================================
+// PINTARPY
+// =====================================================================
+
+export const courseStatus = pgEnum("course_status", [
+  "locked",
+  "in_progress",
+  "completed",
+]);
+
+export const course = pgTable("course", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull().unique(),
+  description: text("description").notNull(),
+  duration: integer("duration").notNull(), // durasi dalam menit
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const userCourseProgress = pgTable(
+  "user_course_progress",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    courseId: text("course_id")
+      .notNull()
+      .references(() => course.id, { onDelete: "cascade" }),
+    progress: integer("progress").default(0).notNull(), // 0 - 100
+    status: courseStatus("status").default("locked").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    // hanya 1 progress per user per course
+    uniqueIndex("user_course_progress_user_id_course_id_uq").on(
+      table.userId,
+      table.courseId
+    ),
+    index("user_course_progress_user_id_idx").on(table.userId),
+  ]
+);
+
+export const blogPost = pgTable("blog_post", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  title: text("title").notNull().unique(),
+  slug: text("slug").notNull().unique(),
+  imgLink: text("img_link"),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  timesOpened: integer("times_opened").default(0).notNull(),
+});
+
+// =====================================================================
+// RELATIONS
+// =====================================================================
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   pengeluaran: many(pengeluaran),
   pemasukan: many(pemasukan),
+  courseProgress: many(userCourseProgress),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -141,3 +216,23 @@ export const pemasukanRelations = relations(pemasukan, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+// COURSE → PROGRESS
+export const courseRelations = relations(course, ({ many }) => ({
+  progress: many(userCourseProgress),
+}));
+
+// PROGRESS → USER, COURSE
+export const userCourseProgressRelations = relations(
+  userCourseProgress,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [userCourseProgress.userId],
+      references: [user.id],
+    }),
+    course: one(course, {
+      fields: [userCourseProgress.courseId],
+      references: [course.id],
+    }),
+  })
+);

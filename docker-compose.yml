@@ -1,29 +1,51 @@
-version: "3.9"
+# Stack utama: Postgres bersama (dipakai finance-zenio + pintarpy) + app finance-zenio.
+#
+# Jalankan DB saja untuk development lokal:
+#   docker compose up -d db
+#
+# Repo pintarpy punya docker-compose.yml sendiri yang menempel ke network
+# "shared-net" di bawah ini, jadi stack ini harus jalan lebih dulu.
 
 services:
   app:
     build: .
-    container_name: next-app
+    container_name: finance-zenio
     ports:
       - "3002:3000"
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/mydb
+      DATABASE_URL: postgresql://postgres:postgres@shared-postgres:5432/zenio_pintarpy
       NODE_ENV: production
+    env_file:
+      - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    networks:
+      - shared-net
 
   db:
     image: postgres:16-alpine
-    container_name: postgres-db
+    container_name: shared-postgres
     restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mydb
+      POSTGRES_DB: zenio_pintarpy
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d zenio_pintarpy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - shared-net
 
 volumes:
   postgres_data:
+
+networks:
+  shared-net:
+    name: shared-net

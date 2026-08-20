@@ -22,6 +22,13 @@
       "when": 1747526400000,
       "tag": "0002_add_kategori",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787212183772,
+      "tag": "0003_add_pintarpy_tables",
+      "breakpoints": true
     }
   ]
 }
