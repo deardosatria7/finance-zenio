@@ -10,6 +10,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  // Dasar untuk URL absolut Open Graph/Twitter. NEXT_PUBLIC_SITE_URL harus
+  // tersedia saat build (lihat ARG di Dockerfile), bukan hanya saat runtime.
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3001"
+  ),
   title: {
     default: "Finance Zenio – Catat Keuangan Pribadi",
     template: "%s | Finance Zenio",

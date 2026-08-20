@@ -1,10 +1,8 @@
 .git
 .gitignore
 .env
-.env.*
 .next
 node_modules
 README.md
 Dockerfile
 .dockerignore
-drizzle/

@@ -20,8 +20,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build Next.js app
-RUN npm run build
+# URL situs untuk metadataBase (Open Graph). Dibutuhkan saat build, bukan runtime.
+ARG NEXT_PUBLIC_SITE_URL="http://localhost:3001"
+
+# Build Next.js app.
+# BETTER_AUTH_SECRET di sini semata agar `next build` tidak jatuh ke secret
+# default better-auth. Nilai asli WAJIB datang dari environment runtime;
+# placeholder ini sengaja dikenali dan ditolak oleh app/api/auth/[...all].
+RUN BETTER_AUTH_SECRET="build-only-placeholder-do-not-use-at-runtime" NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" npm run build
 
 # =========================================
 # Stage 3 — Runner
@@ -39,9 +45,10 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/next.config.* ./
 
-# Optional: drizzle config/migrations
+# Migration + config-nya, supaya bisa `npx drizzle-kit migrate` dari container
 COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/drizzle.config.ts ./
 
-EXPOSE 3002
+EXPOSE 3000
 
 CMD ["npm", "start"]
