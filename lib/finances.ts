@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { pemasukan, pengeluaran } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getRateLimiter } from "./rate-limiter";
 import {
@@ -115,4 +115,78 @@ export async function deletePengeluaran(userId: string, id: number) {
   if (deleted.length === 0) {
     throw new Error("Pengeluaran not found!");
   }
+}
+
+export async function getSaldo(userId: string) {
+  const [[masuk], [keluar]] = await Promise.all([
+    db
+      .select({ total: sql<string>`COALESCE(SUM(${pemasukan.nominal}), 0)` })
+      .from(pemasukan)
+      .where(eq(pemasukan.userId, userId)),
+    db
+      .select({ total: sql<string>`COALESCE(SUM(${pengeluaran.nominal}), 0)` })
+      .from(pengeluaran)
+      .where(eq(pengeluaran.userId, userId)),
+  ]);
+
+  const totalPemasukan = Number(masuk.total);
+  const totalPengeluaran = Number(keluar.total);
+
+  return {
+    totalPemasukan,
+    totalPengeluaran,
+    saldo: totalPemasukan - totalPengeluaran,
+  };
+}
+
+export type Transaksi = {
+  jenis: "pemasukan" | "pengeluaran";
+  id: number;
+  nama: string;
+  nominal: number;
+  kategori: string;
+  createdAt: Date;
+};
+
+/** Transaksi terbaru dari kedua tabel, dari yang paling baru */
+export async function getRiwayat(
+  userId: string,
+  limit = 5,
+): Promise<Transaksi[]> {
+  // `limit` teratas dari tiap tabel pasti memuat `limit` teratas gabungannya
+  const [masuk, keluar] = await Promise.all([
+    db
+      .select()
+      .from(pemasukan)
+      .where(eq(pemasukan.userId, userId))
+      .orderBy(desc(pemasukan.createdAt))
+      .limit(limit),
+    db
+      .select()
+      .from(pengeluaran)
+      .where(eq(pengeluaran.userId, userId))
+      .orderBy(desc(pengeluaran.createdAt))
+      .limit(limit),
+  ]);
+
+  return [
+    ...masuk.map((p) => ({
+      jenis: "pemasukan" as const,
+      id: p.id,
+      nama: p.namaPemasukan,
+      nominal: Number(p.nominal),
+      kategori: p.kategori,
+      createdAt: p.createdAt,
+    })),
+    ...keluar.map((p) => ({
+      jenis: "pengeluaran" as const,
+      id: p.id,
+      nama: p.namaPengeluaran,
+      nominal: Number(p.nominal),
+      kategori: p.kategori,
+      createdAt: p.createdAt,
+    })),
+  ]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, limit);
 }

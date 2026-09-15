@@ -10,3 +10,13 @@ export function getRateLimiter() {
     duration: 10, // per 10 detik
   });
 }
+
+/** Batas pesan per chat Telegram; tiap pesan nanti bisa memicu panggilan LLM */
+export function getTelegramRateLimiter() {
+  return new RateLimiterRedis({
+    storeClient: getRedis(),
+    keyPrefix: "rate_limit_tg",
+    points: 10, // jumlah pesan
+    duration: 60, // per 60 detik
+  });
+}

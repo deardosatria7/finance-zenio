@@ -40,7 +40,14 @@ async function main() {
     secret_token: secret,
     allowed_updates: ["message", "callback_query"],
   });
-  console.log(`Webhook diarahkan ke ${url}`);
+
+  // Menu yang muncul saat user mengetik "/" di chat bot
+  await api.setMyCommands([
+    { command: "saldo", description: "Cek saldo saat ini" },
+    { command: "riwayat", description: "10 transaksi terakhir" },
+    { command: "putus", description: "Putuskan akun dari chat ini" },
+  ]);
+  console.log(`Webhook diarahkan ke ${url}, menu command diperbarui`);
 }
 
 main().catch((error) => {
