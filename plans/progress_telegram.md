@@ -12,7 +12,7 @@ sudah jalan, kondisi saat ini, dan langkah berikutnya.
 | 3. Schema | Tabel `telegram_link`, migrasi `0004`, **sudah dijalankan ke DB produksi**, disinkron + di-push ke pintarpy (`6cb6668`) | `f9fb89d` |
 | 4. Linking | `lib/telegram/link.ts` (kode sekali pakai di Redis, `GETDEL`), `lib/actions/telegram.ts`, halaman `/dashboard/telegram` + menu sidebar, `lib/telegram/bot.ts` (`/start <kode>`, `/putus`), route `app/api/telegram/route.ts` (secret wajib, `onTimeout: "return"`), `scripts/set-telegram-webhook.ts` | `37c6cfb` |
 | 5. Webhook dasar | `/saldo`, `/riwayat` (10 terakhir), dedupe `update_id` (`tg_update:*`, TTL 1 jam), rate limit 10 pesan/menit per chat (`getTelegramRateLimiter`), menu command via `setMyCommands` | `0d89de4` |
-| 6. LLM + aksi tambah | `lib/llm.ts` (fallback antar model + timeout 15 detik), `lib/telegram/intent.ts` (system prompt + validasi zod), `lib/telegram/waktu.ts` (helper WIB), `add*` mengembalikan id, `getRiwayat` bisa difilter, handler `message:text` + tombol Urungkan | (belum di-commit) |
+| 6. LLM + aksi tambah | `lib/llm.ts` (fallback antar model + timeout 15 detik), `lib/telegram/intent.ts` (system prompt + validasi zod), `lib/telegram/waktu.ts` (helper WIB), `add*` mengembalikan id, `getRiwayat` bisa difilter, handler `message:text` + tombol Urungkan | `66a92d7` |
 
 Tahap 1-5 sudah dites manual lewat tunnel, kecuali rate limit Telegram (belum sempat).
 Tahap 6 baru dites lewat `npx tsx scripts/try-intent.ts` (8/8 pesan contoh terurai benar);
