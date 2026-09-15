@@ -1,4 +1,4 @@
-import { BanknoteArrowUp, HandCoins, Home, Inbox } from "lucide-react";
+import { BanknoteArrowUp, HandCoins, Home, Inbox, Send } from "lucide-react";
 
 import {
   Sidebar,
@@ -36,6 +36,11 @@ const items = [
         icon: BanknoteArrowUp,
       },
     ],
+  },
+  {
+    title: "Telegram",
+    url: "/dashboard/telegram",
+    icon: Send,
   },
 ];
 

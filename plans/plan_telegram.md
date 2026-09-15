@@ -183,7 +183,7 @@ route Next.js). Route harus `export const runtime = "nodejs"` karena memakai `pg
 |------|-----|
 | `TELEGRAM_BOT_TOKEN` | token dari @BotFather |
 | `TELEGRAM_BOT_USERNAME` | username bot tanpa `@`, untuk deep link |
-| `TELEGRAM_WEBHOOK_SECRET` | string acak, dikirim Telegram di header |
+| `TELEGRAM_WEBHOOK_SECRET` | string acak, dikirim Telegram di header; nilainya sama di `.env` lokal dan produksi |
 | `AI_ZENIO_GATEWAY` | `https://ai.zenio.id/v1` |
 | `AI_ZENIO_API_KEY` | API key gateway |
 | `AI_MODELS` | opsional, daftar model dipisah koma; default lihat bagian LLM |
@@ -192,7 +192,12 @@ Tambahkan juga ke `.env.example` (tanpa nilai).
 
 ## Development lokal
 
-Webhook butuh URL publik. Pakai bot terpisah untuk dev (satu bot hanya punya satu webhook), lalu:
+Dev dan produksi memakai **satu bot yang sama**. Ini aman selama pemakainya masih sedikit dan
+`.env` lokal memakai DB produksi (akun yang terhubung sama di kedua lingkungan).
+
+Konsekuensinya: satu bot hanya punya satu webhook. Selama webhook diarahkan ke tunnel lokal, bot
+produksi tidak menerima pesan, dan semua pesan (termasuk dari user lain) diproses laptop. Selesai
+development, arahkan webhook kembali ke produksi.
 
 ```bash
 cloudflared tunnel --url http://localhost:3001      # dapat URL https://xxx.trycloudflare.com
@@ -202,11 +207,14 @@ curl "https://api.telegram.org/bot$TOKEN/setWebhook" \
   -d 'allowed_updates=["message","callback_query"]'
 ```
 
-Simpan perintah `setWebhook` sebagai script, mis. `scripts/set-telegram-webhook.ts`.
+Simpan sebagai script `scripts/set-telegram-webhook.ts` dengan argumen `dev <url-tunnel>` atau
+`prod`, supaya berpindah arah webhook cukup satu perintah.
+
+Buat bot dev terpisah kalau bot sudah dipakai user lain, atau kalau dev pindah ke DB lokal.
 
 ## Tahapan
 
-1. **Persiapan**: buat bot dev + prod di @BotFather, isi env, tes gateway LLM dengan satu request
+1. **Persiapan**: buat satu bot di @BotFather, isi env, tes gateway LLM dengan satu request
    manual (pastikan model menjawab JSON dengan benar).
 2. **Service layer**: pindahkan logika ke `lib/finances.ts`, server action jadi pembungkus.
    Dashboard harus tetap jalan persis sama.
