@@ -1,12 +1,30 @@
-import { Bot, type Context } from "grammy";
-import { getRiwayat, getSaldo } from "../finances";
-import { formatDate, formatRupiah } from "../utils";
+import { Bot, InlineKeyboard, type Context } from "grammy";
+import {
+  addPemasukan,
+  addPengeluaran,
+  deletePemasukan,
+  deletePengeluaran,
+  getRiwayat,
+  getSaldo,
+  type RiwayatFilter,
+} from "../finances";
+import { formatRupiah } from "../utils";
 import { getUserIdByChat, linkChatWithCode, unlinkChat } from "./link";
 import { getTelegramRateLimiter } from "../rate-limiter";
 import { getRedis } from "../redis";
+import { normalkanKategori, parseIntent, type Intent } from "./intent";
+import {
+  awalHariWIB,
+  formatTanggalWIB,
+  setelahHariWIB,
+  tanggalKeDate,
+} from "./waktu";
 
 const BELUM_TERHUBUNG =
   "Chat ini belum terhubung ke akun finance-zenio. Buka menu Telegram di dashboard, lalu tekan Hubungkan Telegram.";
+
+const TIDAK_PAHAM =
+  "Maaf, aku belum paham. Contoh: makan siang 25rb, gajian 8,5jt, saldo, atau riwayat.";
 
 /** userId pemilik chat ini; kalau belum terhubung, balas instruksi dan kembalikan null */
 async function userIdOrReply(ctx: Context) {
@@ -29,6 +47,103 @@ export function getBot(): Bot {
     _bot = createBot(token);
   }
   return _bot;
+}
+
+async function balasSaldo(ctx: Context, userId: string) {
+  const { totalPemasukan, totalPengeluaran, saldo } = await getSaldo(userId);
+  await ctx.reply(
+    [
+      `Saldo: ${formatRupiah(saldo)}`,
+      `Total pemasukan: ${formatRupiah(totalPemasukan)}`,
+      `Total pengeluaran: ${formatRupiah(totalPengeluaran)}`,
+    ].join("\n"),
+  );
+}
+
+async function balasRiwayat(
+  ctx: Context,
+  userId: string,
+  filter: RiwayatFilter = {},
+) {
+  const riwayat = await getRiwayat(userId, 10, filter);
+  if (riwayat.length === 0) {
+    await ctx.reply("Belum ada transaksi.");
+    return;
+  }
+
+  const baris = riwayat.map(
+    (t) =>
+      `${formatTanggalWIB(t.createdAt)} · ${t.nama} (${t.kategori})\n` +
+      `${t.jenis === "pemasukan" ? "+" : "-"}${formatRupiah(t.nominal)}`,
+  );
+  await ctx.reply(
+    `${riwayat.length} transaksi terakhir:\n\n${baris.join("\n\n")}`,
+  );
+}
+
+/** Simpan transaksi hasil intent `tambah`, balas ringkasan + tombol urungkan */
+async function simpanTambah(
+  ctx: Context,
+  userId: string,
+  intent: Extract<Intent, { aksi: "tambah" }>,
+) {
+  const kategori = normalkanKategori(intent.jenis, intent.kategori);
+  const tanggal = tanggalKeDate(intent.tanggal);
+
+  const baris =
+    intent.jenis === "pemasukan"
+      ? await addPemasukan(userId, {
+          nama_pemasukan: intent.nama,
+          nominal: intent.nominal,
+          kategori,
+          tanggal,
+        })
+      : await addPengeluaran(userId, {
+          nama_pengeluaran: intent.nama,
+          nominal: intent.nominal,
+          kategori,
+          tanggal,
+        });
+
+  const tanda = intent.jenis === "pemasukan" ? "+" : "-";
+  await ctx.reply(
+    `Tercatat: ${intent.nama} ${tanda}${formatRupiah(intent.nominal)} (${kategori}), ` +
+      formatTanggalWIB(baris.createdAt),
+    {
+      reply_markup: new InlineKeyboard().text(
+        "Urungkan",
+        `undo:${intent.jenis}:${baris.id}`,
+      ),
+    },
+  );
+}
+
+async function jalankanIntent(ctx: Context, userId: string, intent: Intent) {
+  switch (intent.aksi) {
+    case "tambah":
+      await simpanTambah(ctx, userId, intent);
+      return;
+    case "saldo":
+      await balasSaldo(ctx, userId);
+      return;
+    case "riwayat":
+      await balasRiwayat(ctx, userId, {
+        jenis: intent.jenis,
+        dari: intent.dari ? awalHariWIB(intent.dari) : undefined,
+        sampai: intent.sampai ? setelahHariWIB(intent.sampai) : undefined,
+      });
+      return;
+    case "edit":
+    case "hapus":
+      // Menyusul di tahap 7 (butuh pencarian kandidat + konfirmasi tombol)
+      await ctx.reply(
+        "Edit dan hapus lewat chat belum tersedia. Sementara ini ubah lewat dashboard, " +
+          "atau tekan Urungkan kalau transaksinya baru saja dicatat.",
+      );
+      return;
+    case "tidak_dikenal":
+      await ctx.reply(TIDAK_PAHAM);
+  }
 }
 
 function createBot(token: string) {
@@ -105,45 +220,55 @@ function createBot(token: string) {
   pm.command("saldo", async (ctx) => {
     const userId = await userIdOrReply(ctx);
     if (!userId) return;
-
-    const { totalPemasukan, totalPengeluaran, saldo } = await getSaldo(userId);
-    await ctx.reply(
-      [
-        `Saldo: ${formatRupiah(saldo)}`,
-        `Total pemasukan: ${formatRupiah(totalPemasukan)}`,
-        `Total pengeluaran: ${formatRupiah(totalPengeluaran)}`,
-      ].join("\n"),
-    );
+    await balasSaldo(ctx, userId);
   });
 
   pm.command("riwayat", async (ctx) => {
     const userId = await userIdOrReply(ctx);
     if (!userId) return;
+    await balasRiwayat(ctx, userId);
+  });
 
-    const riwayat = await getRiwayat(userId, 10);
-    if (riwayat.length === 0) {
-      await ctx.reply("Belum ada transaksi.");
+  // Tombol Urungkan pada balasan transaksi yang baru dicatat
+  pm.callbackQuery(/^undo:(pemasukan|pengeluaran):(\d+)$/, async (ctx) => {
+    const userId = await getUserIdByChat(String(ctx.chat.id));
+    if (!userId) {
+      await ctx.answerCallbackQuery(BELUM_TERHUBUNG);
       return;
     }
 
-    const baris = riwayat.map(
-      (t) =>
-        `${formatDate(t.createdAt)} · ${t.nama} (${t.kategori})\n` +
-        `${t.jenis === "pemasukan" ? "+" : "-"}${formatRupiah(t.nominal)}`,
-    );
-    await ctx.reply(
-      `${riwayat.length} transaksi terakhir:\n\n${baris.join("\n\n")}`,
-    );
+    const [, jenis, id] = ctx.match;
+
+    try {
+      // Kepemilikan dicek ulang di WHERE service, bukan dipercaya dari callback data
+      if (jenis === "pemasukan") {
+        await deletePemasukan(userId, Number(id));
+      } else {
+        await deletePengeluaran(userId, Number(id));
+      }
+    } catch {
+      await ctx.answerCallbackQuery("Transaksi sudah tidak ada.");
+      return;
+    }
+
+    await ctx.editMessageText("Dibatalkan, transaksi dihapus.");
+    await ctx.answerCallbackQuery("Dibatalkan");
   });
 
-  // Sementara: parser LLM untuk mencatat transaksi menyusul di tahap 6 plan
-  pm.on("message", async (ctx) => {
-    const userId = await getUserIdByChat(String(ctx.chat.id));
-    await ctx.reply(
-      userId
-        ? "Fitur mencatat lewat chat sedang disiapkan. Sementara ini coba /saldo atau /riwayat."
-        : BELUM_TERHUBUNG,
-    );
+  pm.on("message:text", async (ctx) => {
+    const userId = await userIdOrReply(ctx);
+    if (!userId) return;
+
+    // Parsing LLM bisa beberapa detik; kasih tanda bot sedang mengetik
+    await ctx.replyWithChatAction("typing").catch(() => {});
+
+    const intent = await parseIntent(ctx.message.text);
+    if (!intent) {
+      await ctx.reply(TIDAK_PAHAM);
+      return;
+    }
+
+    await jalankanIntent(ctx, userId, intent);
   });
 
   return bot;

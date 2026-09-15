@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { pemasukan, pengeluaran } from "@/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getRateLimiter } from "./rate-limiter";
 import {
@@ -31,13 +31,19 @@ export async function addPemasukan(
 ) {
   await consumerRateLimit(`pemasukan_${userId}`);
 
-  await db.insert(pemasukan).values({
-    userId,
-    nominal: data.nominal.toFixed(2),
-    namaPemasukan: data.nama_pemasukan,
-    kategori: data.kategori,
-    createdAt: data.tanggal,
-  });
+  // id dikembalikan supaya pemanggil (bot Telegram) bisa menawarkan tombol urungkan
+  const [baris] = await db
+    .insert(pemasukan)
+    .values({
+      userId,
+      nominal: data.nominal.toFixed(2),
+      namaPemasukan: data.nama_pemasukan,
+      kategori: data.kategori,
+      createdAt: data.tanggal,
+    })
+    .returning({ id: pemasukan.id, createdAt: pemasukan.createdAt });
+
+  return baris;
 }
 
 export async function editPemasukan(
@@ -77,13 +83,18 @@ export async function addPengeluaran(
 ) {
   await consumerRateLimit(`pengeluaran_${userId}`);
 
-  await db.insert(pengeluaran).values({
-    userId,
-    nominal: data.nominal.toFixed(2),
-    namaPengeluaran: data.nama_pengeluaran,
-    kategori: data.kategori,
-    createdAt: data.tanggal,
-  });
+  const [baris] = await db
+    .insert(pengeluaran)
+    .values({
+      userId,
+      nominal: data.nominal.toFixed(2),
+      namaPengeluaran: data.nama_pengeluaran,
+      kategori: data.kategori,
+      createdAt: data.tanggal,
+    })
+    .returning({ id: pengeluaran.id, createdAt: pengeluaran.createdAt });
+
+  return baris;
 }
 
 export async function editPengeluaran(
@@ -148,25 +159,49 @@ export type Transaksi = {
   createdAt: Date;
 };
 
+/** Penyempit opsional riwayat; `dari` inklusif, `sampai` eksklusif */
+export type RiwayatFilter = {
+  jenis?: "pemasukan" | "pengeluaran";
+  dari?: Date;
+  sampai?: Date;
+};
+
 /** Transaksi terbaru dari kedua tabel, dari yang paling baru */
 export async function getRiwayat(
   userId: string,
   limit = 5,
+  filter: RiwayatFilter = {},
 ): Promise<Transaksi[]> {
+  const rentang = (
+    kolom: typeof pemasukan.createdAt | typeof pengeluaran.createdAt,
+  ) =>
+    and(
+      filter.dari ? gte(kolom, filter.dari) : undefined,
+      filter.sampai ? lt(kolom, filter.sampai) : undefined,
+    );
+
   // `limit` teratas dari tiap tabel pasti memuat `limit` teratas gabungannya
   const [masuk, keluar] = await Promise.all([
-    db
-      .select()
-      .from(pemasukan)
-      .where(eq(pemasukan.userId, userId))
-      .orderBy(desc(pemasukan.createdAt))
-      .limit(limit),
-    db
-      .select()
-      .from(pengeluaran)
-      .where(eq(pengeluaran.userId, userId))
-      .orderBy(desc(pengeluaran.createdAt))
-      .limit(limit),
+    filter.jenis === "pengeluaran"
+      ? []
+      : db
+          .select()
+          .from(pemasukan)
+          .where(
+            and(eq(pemasukan.userId, userId), rentang(pemasukan.createdAt)),
+          )
+          .orderBy(desc(pemasukan.createdAt))
+          .limit(limit),
+    filter.jenis === "pemasukan"
+      ? []
+      : db
+          .select()
+          .from(pengeluaran)
+          .where(
+            and(eq(pengeluaran.userId, userId), rentang(pengeluaran.createdAt)),
+          )
+          .orderBy(desc(pengeluaran.createdAt))
+          .limit(limit),
   ]);
 
   return [
