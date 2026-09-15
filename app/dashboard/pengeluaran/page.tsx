@@ -1,10 +1,10 @@
 import SearchBar from "@/components/search-bar";
 import { db } from "@/db";
 import { pengeluaran } from "@/db/schema";
-import { getUserSessionSSR } from "@/lib/actions/sessions";
+import { getUserSessionSSR } from "@/lib/session";
 import { and, eq, ilike, gte, lt, sql } from "drizzle-orm";
 import BackButton from "@/components/back-button";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiah, getDateRange } from "@/lib/utils";
 import Pagination from "@/components/pagination";
 import PengeluaranTable from "./components/pengeluaran-table";
 import { ButtonAddNewPengeluaran } from "./components/add-new-pengeluaran";
@@ -29,25 +29,18 @@ export default async function PengeluaranPage({
   const limit = Number(params.limit ?? 10);
   const offset = (page - 1) * limit;
 
-  const filterMonth = typeof params.month === "string" ? Number(params.month) : null;
-  const filterYear = typeof params.year === "string" ? Number(params.year) : null;
+  const filterMonth =
+    typeof params.month === "string" ? Number(params.month) : null;
+  const filterYear =
+    typeof params.year === "string" ? Number(params.year) : null;
 
-  let dateFrom: Date | null = null;
-  let dateTo: Date | null = null;
-  if (filterMonth && filterYear) {
-    dateFrom = new Date(filterYear, filterMonth - 1, 1);
-    dateTo = new Date(filterYear, filterMonth, 1);
-  } else if (filterYear) {
-    dateFrom = new Date(filterYear, 0, 1);
-    dateTo = new Date(filterYear + 1, 0, 1);
-  } else if (filterMonth) {
-    dateFrom = new Date(now.getFullYear(), filterMonth - 1, 1);
-    dateTo = new Date(now.getFullYear(), filterMonth, 1);
-  }
+  const { dateFrom, dateTo } = getDateRange(filterMonth, filterYear);
 
   const baseWhere = and(
     eq(pengeluaran.userId, session.user.id),
-    searchQuery ? ilike(pengeluaran.namaPengeluaran, `%${searchQuery}%`) : undefined,
+    searchQuery
+      ? ilike(pengeluaran.namaPengeluaran, `%${searchQuery}%`)
+      : undefined,
     dateFrom ? gte(pengeluaran.createdAt, dateFrom) : undefined,
     dateTo ? lt(pengeluaran.createdAt, dateTo) : undefined,
   );
@@ -82,8 +75,8 @@ export default async function PengeluaranPage({
           and(
             eq(pengeluaran.userId, session.user.id),
             gte(pengeluaran.createdAt, startOfMonth),
-            lt(pengeluaran.createdAt, startOfNextMonth)
-          )
+            lt(pengeluaran.createdAt, startOfNextMonth),
+          ),
         ),
     ]);
 
@@ -92,7 +85,9 @@ export default async function PengeluaranPage({
 
   const filteredTotal = dateFrom
     ? await db
-        .select({ total: sql<string>`COALESCE(SUM(${pengeluaran.nominal}), 0)` })
+        .select({
+          total: sql<string>`COALESCE(SUM(${pengeluaran.nominal}), 0)`,
+        })
         .from(pengeluaran)
         .where(baseWhere)
         .then((r) => r[0].total)
@@ -132,7 +127,11 @@ export default async function PengeluaranPage({
         <div className="flex items-center gap-2">
           <BackButton className="w-fit" />
           <ButtonAddNewPengeluaran />
-          <ExportButton type="pengeluaran" month={filterMonth ?? undefined} year={filterYear ?? undefined} />
+          <ExportButton
+            type="pengeluaran"
+            month={filterMonth ?? undefined}
+            year={filterYear ?? undefined}
+          />
         </div>
         <div>
           <PengeluaranTable data={dataPengeluaran} />

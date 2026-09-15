@@ -9,7 +9,7 @@ import {
   Shield,
   Sparkles,
 } from "lucide-react";
-import CountUp from "@/components/CountUp";
+import CountUp from "@/components/count-up";
 
 export default function LandingPage() {
   return (

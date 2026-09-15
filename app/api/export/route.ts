@@ -1,32 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { pemasukan, pengeluaran } from "@/db/schema";
-import { getUserSessionSSR } from "@/lib/actions/sessions";
+import { getUserSessionSSR } from "@/lib/session";
 import { and, eq, gte, lt } from "drizzle-orm";
+import { getDateRange } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const session = await getUserSessionSSR();
   const { searchParams } = new URL(req.url);
 
   const type = searchParams.get("type") as "pemasukan" | "pengeluaran";
-  const month = searchParams.get("month") ? Number(searchParams.get("month")) : null;
-  const year = searchParams.get("year") ? Number(searchParams.get("year")) : null;
-  const now = new Date();
+  const month = searchParams.get("month")
+    ? Number(searchParams.get("month"))
+    : null;
+  const year = searchParams.get("year")
+    ? Number(searchParams.get("year"))
+    : null;
 
-  let dateFrom: Date | null = null;
-  let dateTo: Date | null = null;
-  if (month && year) {
-    dateFrom = new Date(year, month - 1, 1);
-    dateTo = new Date(year, month, 1);
-  } else if (year) {
-    dateFrom = new Date(year, 0, 1);
-    dateTo = new Date(year + 1, 0, 1);
-  } else if (month) {
-    dateFrom = new Date(now.getFullYear(), month - 1, 1);
-    dateTo = new Date(now.getFullYear(), month, 1);
-  }
+  const { dateFrom, dateTo } = getDateRange(month, year);
 
-  let rows: { nama: string; kategori: string; nominal: string; tanggal: Date }[] = [];
+  let rows: {
+    nama: string;
+    kategori: string;
+    nominal: string;
+    tanggal: Date;
+  }[] = [];
 
   if (type === "pemasukan") {
     const data = await db
@@ -37,7 +35,7 @@ export async function GET(req: NextRequest) {
           eq(pemasukan.userId, session.user.id),
           dateFrom ? gte(pemasukan.createdAt, dateFrom) : undefined,
           dateTo ? lt(pemasukan.createdAt, dateTo) : undefined,
-        )
+        ),
       )
       .orderBy(pemasukan.createdAt);
 
@@ -56,7 +54,7 @@ export async function GET(req: NextRequest) {
           eq(pengeluaran.userId, session.user.id),
           dateFrom ? gte(pengeluaran.createdAt, dateFrom) : undefined,
           dateTo ? lt(pengeluaran.createdAt, dateTo) : undefined,
-        )
+        ),
       )
       .orderBy(pengeluaran.createdAt);
 

@@ -1,7 +1,7 @@
 import LogoutButton from "@/components/logout-button";
 import { db } from "@/db";
 import { pemasukan, pengeluaran } from "@/db/schema";
-import { getUserSessionSSR } from "@/lib/actions/sessions";
+import { getUserSessionSSR } from "@/lib/session";
 import type { Pemasukan, Pengeluaran } from "@/lib/types";
 import { and, eq, gte, lt } from "drizzle-orm";
 import { ButtonAddNewPemasukan } from "./pemasukan/components/add-new-pemasukan";
@@ -9,10 +9,23 @@ import { ButtonAddNewPengeluaran } from "./pengeluaran/components/add-new-pengel
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, Wallet } from "lucide-react";
 import Link from "next/link";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatRupiah, formatDate } from "@/lib/utils";
 import FinanceChart from "@/components/finance-chart";
 
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "Mei",
+  "Jun",
+  "Jul",
+  "Agt",
+  "Sep",
+  "Okt",
+  "Nov",
+  "Des",
+];
 
 export default async function DashboardPage() {
   const session = await getUserSessionSSR();
@@ -31,19 +44,25 @@ export default async function DashboardPage() {
 
   const totalPemasukan = pemasukanAll.reduce(
     (sum, item) => sum + Number.parseFloat(item.nominal),
-    0
+    0,
   );
   const totalPengeluaran = pengeluaranAll.reduce(
     (sum, item) => sum + Number.parseFloat(item.nominal),
-    0
+    0,
   );
   const saldo = totalPemasukan - totalPengeluaran;
 
   const recentPemasukan = [...pemasukanAll]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
     .slice(0, 5);
   const recentPengeluaran = [...pengeluaranAll]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
     .slice(0, 5);
 
   // Build monthly data for last 6 months
@@ -113,7 +132,7 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                  {formatCurrency(totalPemasukan)}
+                  {formatRupiah(totalPemasukan)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {pemasukanAll.length} transaksi
@@ -134,7 +153,7 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">
-                  {formatCurrency(totalPengeluaran)}
+                  {formatRupiah(totalPengeluaran)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {pengeluaranAll.length} transaksi
@@ -160,7 +179,7 @@ export default async function DashboardPage() {
                     : "text-rose-600 dark:text-rose-400"
                 }`}
               >
-                {formatCurrency(saldo)}
+                {formatRupiah(saldo)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Saldo saat ini
@@ -201,7 +220,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="text-right ml-4">
                         <p className="font-semibold text-emerald-600 dark:text-emerald-400">
-                          +{formatCurrency(Number.parseFloat(item.nominal))}
+                          +{formatRupiah(item.nominal)}
                         </p>
                       </div>
                     </div>
@@ -241,7 +260,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="text-right ml-4">
                         <p className="font-semibold text-rose-600 dark:text-rose-400">
-                          -{formatCurrency(Number.parseFloat(item.nominal))}
+                          -{formatRupiah(item.nominal)}
                         </p>
                       </div>
                     </div>

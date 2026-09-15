@@ -1,5 +1,5 @@
 // app/auth/page.tsx
-import { getUserSessionSSR } from "@/lib/actions/sessions";
+import { getUserSessionSSR } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { LoginForm } from "../../components/login-form";
 

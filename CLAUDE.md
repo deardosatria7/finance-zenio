@@ -30,11 +30,11 @@ This app shares one Postgres database and one better-auth `user`/`session` table
 
 ## Architecture
 
-- **No middleware.** Every protected page and route calls `getUserSessionSSR()` (`lib/actions/sessions.ts`), which redirects to `/auth` when there is no session. `app/dashboard/layout.tsx` does not guard anything, so a new dashboard page must call it itself.
+- **No middleware.** Every protected page and route calls `getUserSessionSSR()` (`lib/session.ts`), which redirects to `/auth` when there is no session. `app/dashboard/layout.tsx` does not guard anything, so a new dashboard page must call it itself.
 - **Reads** happen directly in async server components with Drizzle (`db` from `@/db`), always filtered by `session.user.id`. Filters (search, month/year, pagination) come from `searchParams`.
 - **Writes** go through server actions in `lib/actions/finances.ts`. Each one re-reads the session; edit/delete first check that the row's `userId` matches. Client components (react-hook-form + zod schemas from `lib/types.ts`) call the action, show a `sonner` toast, then `router.refresh()` — there is no `revalidatePath`.
 - **Pemasukan and pengeluaran are mirrored modules**: parallel tables, pages (`app/dashboard/{pemasukan,pengeluaran}`), components, actions, and zod schemas. A change to one almost always needs the same change in the other.
-- **Money**: `nominal` is `numeric(15,2)`, so Drizzle returns it as a string. Write with `value.toFixed(2)`, read with `Number(...)`, display with `formatRupiah`/`formatCurrency` from `lib/utils.ts`.
+- **Money**: `nominal` is `numeric(15,2)`, so Drizzle returns it as a string. Write with `value.toFixed(2)`, read with `Number(...)`, display with `formatRupiah` (accepts string or number) from `lib/utils.ts`.
 - **Categories**: allowed values live in `KATEGORI_PEMASUKAN`/`KATEGORI_PENGELUARAN` in `lib/types.ts`; the DB column is free text defaulting to `"Lainnya"`.
 - **Rate limiting**: `rate-limiter-flexible` on ioredis (`lib/rate-limiter.ts`), applied only to the add actions. The Redis client in `lib/redis.ts` is lazily created so `next build` works without `REDIS_URL`; keep it lazy. The `@upstash/*` dependencies are unused.
 - **API routes**: `api/auth/[...all]` (better-auth handler) and `api/export` (CSV export of the current user's rows).
