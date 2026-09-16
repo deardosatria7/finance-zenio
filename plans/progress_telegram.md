@@ -54,8 +54,51 @@ Catatan implementasi (beda dari rencana awal):
 
 ### Tahap 7: edit dan hapus lewat chat
 
-Cari kandidat terbaru yang cocok `kataKunci` (+ `tanggal` kalau ada), konfirmasi dengan tombol
-`[Ya] [Batal]` atau daftar pilihan, verifikasi ulang kepemilikan di callback. Detail di plan.
+Garis besarnya ada di `plan_telegram.md` bagian "Edit dan hapus selalu lewat konfirmasi":
+cari kandidat yang cocok `kataKunci` (+ `tanggal` kalau ada), konfirmasi dengan tombol, verifikasi
+ulang kepemilikan di callback. Hasil diskusi 16 Sep yang memperjelas detailnya:
+
+**Niat konfirmasi disimpan di Redis, bukan di callback data.** Callback data Telegram cuma 64 byte
+— cukup untuk `del:pengeluaran:123`, tidak cukup untuk edit yang membawa
+`{nama, nominal, kategori, tanggal}`. Pakai pola yang sama dengan kode linking:
+`tg_pending:<token>` berisi `{ chatId, jenis, id, perubahan, sebelum }`, TTL 10 menit, callback
+data cukup `ok:<token>`. Diambil dengan `GETDEL` supaya token sekali pakai — tombol yang ditekan
+dua kali dapat "konfirmasi kedaluwarsa", bukan edit dobel. Token diikat ke `chatId` dan dicek ulang
+saat callback (di luar pengecekan `userId` di `WHERE` service).
+
+**Edit hampir selalu parsial** ("ternyata 60rb" tidak menyebut nama dan kategori), sedangkan
+`editPemasukan`/`editPengeluaran` yang ada menimpa semua kolom. Tambah fungsi service baru yang
+`.set()`-nya hanya berisi field yang terisi (`patchPemasukan`/`patchPengeluaran`), bukan
+baca-lalu-merge di bot: satu query, tidak ada jendela baca-tulis. Baris lama tetap dibaca, tapi
+untuk ditampilkan di konfirmasi saja.
+
+**Pencarian kandidat**: `ilike('%kataKunci%')` pada `nama_*`, difilter `userId`, dipersempit
+`tanggal` kalau disebut, urut terbaru, ambil 5. `jenis` null berarti cari di dua tabel.
+Cabangnya:
+
+- 0 kandidat → sebutkan rentang yang dicari, biar jelas kenapa nihil
+- 1 kandidat → tampilkan sebelum -> sesudah, tombol `[Ya] [Batal]`
+- 2-5 kandidat → daftar bernomor, satu tombol per baris, callback `pilih:<token>:<idx>`
+  (satu entri Redis berisi daftar kandidatnya, index-nya di callback data)
+
+Keputusan lain:
+
+- **Batasi pencarian ke 30 hari terakhir.** Tanpa batas, "hapus kopi" bisa menyodorkan transaksi
+  tiga bulan lalu cuma karena kata kuncinya cocok. Kalau tidak ketemu, user bisa perjelas tanggal.
+- **Tawarkan `[Urungkan]` setelah edit berhasil**, bukan cuma setelah tambah. Nilai lamanya sudah
+  ada di Redis untuk konfirmasi, tinggal dipakai mengembalikan.
+- **Hapus selalu lewat konfirmasi**, walau kandidatnya cuma satu dan cocok sempurna. Beda dengan
+  tambah yang langsung disimpan: tambah reversibel lewat Urungkan, hapus tidak.
+
+Belum diputuskan:
+
+- **Tombol `[Edit] [Hapus]` di `/riwayat`.** Hapus gampang (ID sudah diketahui). Edit lewat tombol
+  berarti bot harus bertanya "mau diubah jadi apa?" lalu menunggu jawaban berikutnya — itu state
+  percakapan, hal baru yang belum ada di bot ini. Usulan: pasang `[Hapus]` saja dulu, edit tetap
+  lewat kalimat.
+- **Kata kunci kosong atau terlalu umum** ("hapus yang tadi"). Diperlakukan sebagai "kandidat =
+  transaksi paling terakhir", atau bot balik bertanya? Condong ke yang pertama: ungkapannya wajar
+  dan tetap ada konfirmasi sebelum jalan.
 
 ### Tahap 8: deploy
 
