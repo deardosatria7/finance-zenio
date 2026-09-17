@@ -17,8 +17,12 @@ const PESAN = [
 async function main() {
   for (const pesan of PESAN) {
     const mulai = Date.now();
-    const intent = await parseIntent(pesan);
-    console.log(`${pesan} (${Date.now() - mulai}ms) ->`, JSON.stringify(intent));
+    try {
+      const intent = await parseIntent(pesan);
+      console.log(`${pesan} (${Date.now() - mulai}ms) ->`, JSON.stringify(intent));
+    } catch (error) {
+      console.log(`${pesan} (${Date.now() - mulai}ms) -> GAGAL`, error);
+    }
   }
 }
 

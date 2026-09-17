@@ -11,6 +11,10 @@ export function getRedis(): Redis {
       maxRetriesPerRequest: 3,
       connectTimeout: 5000,
     });
+    // Tanpa listener, ioredis hanya mencetak "Unhandled error event" tanpa konteks
+    _redis.on("error", (error) => {
+      console.error("Redis error:", error.message);
+    });
   }
   return _redis;
 }

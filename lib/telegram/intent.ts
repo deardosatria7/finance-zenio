@@ -152,15 +152,14 @@ export function normalkanKategori(
 }
 
 /**
- * Intent dari pesan user; null kalau semua model gagal atau jawabannya tidak lolos validasi
- * (pemanggil membalas contoh pesan).
+ * Intent dari pesan user; null kalau jawaban LLM tidak lolos validasi (pemanggil membalas
+ * contoh pesan). Melempar LLMUnavailableError kalau gateway sedang gangguan.
  */
 export async function parseIntent(pesan: string): Promise<Intent | null> {
   const content = await chatCompletion([
     { role: "system", content: systemPrompt() },
     { role: "user", content: pesan.slice(0, MAX_PESAN) },
   ]);
-  if (!content) return null;
 
   const json = objekJsonPertama(content);
   if (!json) {

@@ -20,13 +20,21 @@ function getHandler() {
 
     handler = webhookCallback(getBot(), "std/http", {
       secretToken,
-      // Balas 200 saat handler lambat; "throw" membuat Telegram mengirim ulang update yang sama
-      onTimeout: "return",
+      // Balas 200 saat handler lambat; "throw" membuat Telegram mengirim ulang update yang sama.
+      // Handler tetap jalan di belakang, error-nya dicatat middleware di bot.ts.
+      onTimeout: () => {
+        console.warn("Telegram webhook: handler lebih dari 10 detik, dibalas 200 duluan");
+      },
     });
   }
   return handler;
 }
 
 export async function POST(request: Request) {
-  return getHandler()(request);
+  try {
+    return await getHandler()(request);
+  } catch (error) {
+    console.error("Telegram webhook error:", error);
+    throw error;
+  }
 }

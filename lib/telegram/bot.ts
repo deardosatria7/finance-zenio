@@ -1,4 +1,5 @@
 import { Bot, InlineKeyboard, type Context } from "grammy";
+import type { UserFromGetMe } from "grammy/types";
 import {
   addPemasukan,
   addPengeluaran,
@@ -12,6 +13,7 @@ import { formatRupiah } from "../utils";
 import { getUserIdByChat, linkChatWithCode, unlinkChat } from "./link";
 import { getTelegramRateLimiter } from "../rate-limiter";
 import { getRedis } from "../redis";
+import { LLMUnavailableError } from "../llm";
 import { normalkanKategori, parseIntent, type Intent } from "./intent";
 import {
   awalHariWIB,
@@ -33,6 +35,26 @@ async function userIdOrReply(ctx: Context) {
     await ctx.reply(BELUM_TERHUBUNG);
   }
   return userId;
+}
+
+/**
+ * Info bot tanpa memanggil getMe. Tanpa botInfo, webhook grammy memanggil getMe sebelum
+ * mengecek secret dan di luar timeout-nya, jadi saat server tidak bisa menjangkau Telegram
+ * (kejadian 2026-09-17, DNS container EAI_AGAIN) route menggantung tanpa log apa pun.
+ * grammy hanya membaca id dan username (untuk mencocokkan /perintah@username).
+ */
+function botInfoDariEnv(token: string): UserFromGetMe {
+  const username = process.env.TELEGRAM_BOT_USERNAME;
+  if (!username) {
+    throw new Error("TELEGRAM_BOT_USERNAME is not defined");
+  }
+
+  return {
+    id: Number(token.split(":")[0]),
+    is_bot: true,
+    first_name: username,
+    username,
+  } as UserFromGetMe;
 }
 
 // Dibuat saat pertama dipakai (seperti lib/redis.ts), supaya next build jalan tanpa TELEGRAM_BOT_TOKEN
@@ -147,7 +169,11 @@ async function jalankanIntent(ctx: Context, userId: string, intent: Intent) {
 }
 
 function createBot(token: string) {
-  const bot = new Bot(token);
+  const bot = new Bot(token, {
+    botInfo: botInfoDariEnv(token),
+    // Default grammy 500 detik; saat jaringan bermasalah balasan ke Telegram harus cepat gagal
+    client: { timeoutSeconds: 15 },
+  });
 
   // Error dari handler ditangkap di sini dan route tetap membalas 200. Kalau dilempar ke route,
   // Telegram menganggap gagal dan terus mengirim ulang update yang sama.
@@ -155,10 +181,18 @@ function createBot(token: string) {
     try {
       await next();
     } catch (error) {
-      console.error("Telegram bot error:", error);
-      await ctx
-        .reply("Maaf, terjadi kesalahan. Coba lagi nanti.")
-        .catch(() => {});
+      console.error(
+        `Telegram bot error (update ${ctx.update.update_id}, chat ${ctx.chat?.id}):`,
+        error,
+      );
+      const pesan =
+        error instanceof LLMUnavailableError
+          ? "Layanan AI sedang gangguan, pesanmu belum tercatat. Coba lagi beberapa menit lagi, " +
+            "atau pakai /saldo dan /riwayat yang tidak butuh AI."
+          : "Maaf, terjadi kesalahan. Coba lagi nanti.";
+      await ctx.reply(pesan).catch((replyError) => {
+        console.error("Telegram: gagal mengirim pesan error:", replyError);
+      });
     }
   });
 
@@ -246,7 +280,9 @@ function createBot(token: string) {
       } else {
         await deletePengeluaran(userId, Number(id));
       }
-    } catch {
+    } catch (error) {
+      // Biasanya transaksi sudah dihapus; dicatat supaya error DB tidak ikut tersamarkan
+      console.warn(`Telegram undo ${jenis}:${id} gagal:`, error);
       await ctx.answerCallbackQuery("Transaksi sudah tidak ada.");
       return;
     }
