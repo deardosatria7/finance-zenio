@@ -7,18 +7,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getUserSessionSSR } from "@/lib/session";
-import { getLinkByUser } from "@/lib/telegram/link";
+import { getLinkByUser } from "@/lib/whatsapp/link";
 import { formatDate } from "@/lib/utils";
-import { TelegramLinkActions } from "./components/telegram-link-actions";
+import { WhatsappLinkActions } from "./components/whatsapp-link-actions";
 
 const CONTOH_PESAN = [
   "makan siang nasi padang 25rb",
   "kemarin beli bensin 50rb",
   "gajian 8,5jt",
+  "hapus parkir kemarin",
   "saldo aku berapa?",
 ];
 
-export default async function TelegramPage() {
+export default async function WhatsappPage() {
   const session = await getUserSessionSSR();
   const link = await getLinkByUser(session.user.id);
 
@@ -28,10 +29,10 @@ export default async function TelegramPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Bot Telegram</CardTitle>
+          <CardTitle>Bot WhatsApp</CardTitle>
           <CardDescription>
             Catat pemasukan dan pengeluaran, atau cek saldo, lewat chat
-            Telegram.
+            WhatsApp.
           </CardDescription>
         </CardHeader>
 
@@ -49,7 +50,7 @@ export default async function TelegramPage() {
             )}
           </p>
 
-          <TelegramLinkActions linked={link !== null} />
+          <WhatsappLinkActions linked={link !== null} />
 
           <div className="text-sm text-muted-foreground">
             <p className="mb-1">Contoh pesan ke bot:</p>

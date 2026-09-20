@@ -1,7 +1,7 @@
 // Tes parser intent tanpa lewat Telegram (buat ngecek perubahan system prompt):
 //   npx tsx scripts/try-intent.ts
 import "dotenv/config";
-import { parseIntent } from "../lib/telegram/intent";
+import { parseIntent } from "../lib/whatsapp/intent";
 
 const PESAN = [
   "makan siang 25rb",

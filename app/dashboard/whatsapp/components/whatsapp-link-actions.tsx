@@ -1,24 +1,24 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { CreateTelegramLink, UnlinkTelegram } from "@/lib/actions/telegram";
-import { Loader2, Send } from "lucide-react";
+import { CreateWhatsappLink, UnlinkWhatsapp } from "@/lib/actions/whatsapp";
+import { Loader2, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-export function TelegramLinkActions({ linked }: { linked: boolean }) {
+export function WhatsappLinkActions({ linked }: { linked: boolean }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [deepLink, setDeepLink] = useState<string | null>(null);
+  const [waLink, setWaLink] = useState<string | null>(null);
 
   function handleCreateLink() {
     startTransition(async () => {
       try {
-        setDeepLink(await CreateTelegramLink());
+        setWaLink(await CreateWhatsappLink());
       } catch (error) {
         console.error(error);
-        toast.error("Gagal membuat link Telegram!");
+        toast.error("Gagal membuat link WhatsApp!");
       }
     });
   }
@@ -26,12 +26,12 @@ export function TelegramLinkActions({ linked }: { linked: boolean }) {
   function handleUnlink() {
     startTransition(async () => {
       try {
-        await UnlinkTelegram();
-        toast.success("Telegram berhasil diputus");
+        await UnlinkWhatsapp();
+        toast.success("WhatsApp berhasil diputus");
         router.refresh();
       } catch (error) {
         console.error(error);
-        toast.error("Gagal memutus Telegram!");
+        toast.error("Gagal memutus WhatsApp!");
       }
     });
   }
@@ -45,25 +45,25 @@ export function TelegramLinkActions({ linked }: { linked: boolean }) {
         className="w-fit"
       >
         {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-        Putuskan Telegram
+        Putuskan WhatsApp
       </Button>
     );
   }
 
   // Link ditampilkan sebagai tombol, bukan window.open setelah await: browser memblokir popup
   // yang tidak langsung dipicu klik
-  if (deepLink) {
+  if (waLink) {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">
-          Buka link ini lalu tekan <b>Start</b> di Telegram. Link berlaku 10
-          menit.
+          Buka link ini, lalu <b>kirim</b> pesan yang sudah terisi otomatis. Link
+          berlaku 10 menit.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button asChild className="w-fit">
-            <a href={deepLink} target="_blank" rel="noopener noreferrer">
-              <Send className="h-4 w-4" />
-              Buka Telegram
+            <a href={waLink} target="_blank" rel="noopener noreferrer">
+              <MessageCircle className="h-4 w-4" />
+              Buka WhatsApp
             </a>
           </Button>
           <Button variant="outline" onClick={() => router.refresh()}>
@@ -79,9 +79,9 @@ export function TelegramLinkActions({ linked }: { linked: boolean }) {
       {isPending ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
-        <Send className="h-4 w-4" />
+        <MessageCircle className="h-4 w-4" />
       )}
-      Hubungkan Telegram
+      Hubungkan WhatsApp
     </Button>
   );
 }

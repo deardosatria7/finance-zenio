@@ -116,15 +116,17 @@ export const pemasukan = pgTable("pemasukan", {
   kategori: text("kategori").notNull().default("Lainnya"),
 });
 
-// TABLE TELEGRAM_LINK: satu akun satu chat Telegram, satu chat satu akun
-export const telegramLink = pgTable("telegram_link", {
+// TABLE CHAT_LINK: satu akun satu nomor WhatsApp, satu nomor satu akun
+export const chatLink = pgTable("chat_link", {
   id: serial("id").primaryKey(),
   userId: text("user_id")
     .notNull()
     .unique()
     .references(() => user.id, { onDelete: "cascade" }),
-  // text, bukan integer: chat ID Telegram bisa melebihi batas integer 32-bit
+  // JID nomor telepon, mis. "628123456789@s.whatsapp.net"
   chatId: text("chat_id").notNull().unique(),
+  // LID, identitas anonim WhatsApp. Sebagian user hanya dikenali lewat ini.
+  chatLid: text("chat_lid").unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

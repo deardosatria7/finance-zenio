@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { pemasukan, pengeluaran } from "@/db/schema";
-import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getRateLimiter } from "./rate-limiter";
 import {
@@ -10,7 +10,7 @@ import {
   PengeluaranFormSchema,
 } from "./types";
 
-// Logika inti tanpa session: dipanggil server action (lib/actions/finances.ts) dan bot Telegram.
+// Logika inti tanpa session: dipanggil server action (lib/actions/finances.ts) dan bot WhatsApp.
 // Semua query difilter userId, jadi pemanggil wajib memastikan userId milik user yang sah.
 
 /** Tanggal transaksi; kosong = waktu sekarang */
@@ -31,7 +31,7 @@ export async function addPemasukan(
 ) {
   await consumerRateLimit(`pemasukan_${userId}`);
 
-  // id dikembalikan supaya pemanggil (bot Telegram) bisa menawarkan tombol urungkan
+  // id dikembalikan supaya pemanggil (bot WhatsApp) bisa menawarkan urungkan
   const [baris] = await db
     .insert(pemasukan)
     .values({
@@ -224,4 +224,117 @@ export async function getRiwayat(
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, limit);
+}
+
+/**
+ * Transaksi milik user yang namanya memuat `kataKunci`, terbaru dulu. Dipakai bot untuk
+ * menyusun daftar kandidat sebelum edit/hapus — LLM tidak pernah tahu ID transaksi.
+ */
+export async function cariTransaksi(
+  userId: string,
+  kataKunci: string,
+  filter: RiwayatFilter = {},
+  limit = 5,
+): Promise<Transaksi[]> {
+  // % di kata kunci user akan jadi wildcard SQL, jadi di-escape lebih dulu
+  const pola = `%${kataKunci.replace(/[\\%_]/g, "\\$&")}%`;
+
+  const [masuk, keluar] = await Promise.all([
+    filter.jenis === "pengeluaran"
+      ? []
+      : db
+          .select()
+          .from(pemasukan)
+          .where(
+            and(
+              eq(pemasukan.userId, userId),
+              ilike(pemasukan.namaPemasukan, pola),
+              filter.dari ? gte(pemasukan.createdAt, filter.dari) : undefined,
+              filter.sampai ? lt(pemasukan.createdAt, filter.sampai) : undefined,
+            ),
+          )
+          .orderBy(desc(pemasukan.createdAt))
+          .limit(limit),
+    filter.jenis === "pemasukan"
+      ? []
+      : db
+          .select()
+          .from(pengeluaran)
+          .where(
+            and(
+              eq(pengeluaran.userId, userId),
+              ilike(pengeluaran.namaPengeluaran, pola),
+              filter.dari ? gte(pengeluaran.createdAt, filter.dari) : undefined,
+              filter.sampai
+                ? lt(pengeluaran.createdAt, filter.sampai)
+                : undefined,
+            ),
+          )
+          .orderBy(desc(pengeluaran.createdAt))
+          .limit(limit),
+  ]);
+
+  return [
+    ...masuk.map((p) => ({
+      jenis: "pemasukan" as const,
+      id: p.id,
+      nama: p.namaPemasukan,
+      nominal: Number(p.nominal),
+      kategori: p.kategori,
+      createdAt: p.createdAt,
+    })),
+    ...keluar.map((p) => ({
+      jenis: "pengeluaran" as const,
+      id: p.id,
+      nama: p.namaPengeluaran,
+      nominal: Number(p.nominal),
+      kategori: p.kategori,
+      createdAt: p.createdAt,
+    })),
+  ]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, limit);
+}
+
+/** Perubahan sebagian; field yang tidak disebut dibiarkan apa adanya */
+export type PerubahanTransaksi = {
+  nama?: string;
+  nominal?: number;
+  kategori?: string;
+  tanggal?: Date;
+};
+
+/**
+ * Edit sebagian satu transaksi. Beda dengan editPemasukan/editPengeluaran yang menimpa semua
+ * kolom dari form dashboard: pesan chat seperti "yang bensin tadi ternyata 60rb" hanya menyebut
+ * satu kolom.
+ */
+export async function updateTransaksi(
+  userId: string,
+  jenis: "pemasukan" | "pengeluaran",
+  id: number,
+  perubahan: PerubahanTransaksi,
+) {
+  const isi = {
+    nominal: perubahan.nominal?.toFixed(2),
+    kategori: perubahan.kategori,
+    createdAt: perubahan.tanggal,
+  };
+
+  const updated =
+    jenis === "pemasukan"
+      ? await db
+          .update(pemasukan)
+          .set({ ...isi, namaPemasukan: perubahan.nama })
+          .where(and(eq(pemasukan.id, id), eq(pemasukan.userId, userId)))
+          .returning({ id: pemasukan.id })
+      : await db
+          .update(pengeluaran)
+          .set({ ...isi, namaPengeluaran: perubahan.nama })
+          .where(and(eq(pengeluaran.id, id), eq(pengeluaran.userId, userId)))
+          .returning({ id: pengeluaran.id });
+
+  if (updated.length === 0) {
+    throw new Error("Transaksi not found!");
+  }
 }

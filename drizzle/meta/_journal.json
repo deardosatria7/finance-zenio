@@ -36,6 +36,20 @@
       "when": 1789463063088,
       "tag": "0004_add_telegram_link",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789901671252,
+      "tag": "0005_hapus_telegram_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789901679552,
+      "tag": "0006_tambah_chat_link",
+      "breakpoints": true
     }
   ]
 }
