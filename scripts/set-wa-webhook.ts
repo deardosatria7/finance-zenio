@@ -49,10 +49,11 @@ async function main() {
       "Content-Type": "application/json",
       Authorization: `Basic ${basic}`,
     },
+    // Nama field mengikuti GET /devices/{id}/webhook; "url"/"secret" ditolak 400
     body: JSON.stringify({
-      url: webhook,
-      secret: butuhEnv("WA_WEBHOOK_SECRET"),
-      events: ["message"],
+      webhook_url: webhook,
+      webhook_secret: butuhEnv("WA_WEBHOOK_SECRET"),
+      webhook_events: "message",
     }),
   });
 
