@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { chatCompletion } from "../llm";
-import { KATEGORI_PEMASUKAN, KATEGORI_PENGELUARAN } from "../types";
+import {
+  KATEGORI_PEMASUKAN,
+  KATEGORI_PENGELUARAN,
+  MAX_NAMA,
+  MAX_NOMINAL,
+} from "../types";
 import { hariIniLengkapWIB, hariIniWIB } from "./waktu";
 
 // Menerjemahkan pesan bebas jadi intent terstruktur. LLM tidak dipercaya: hasilnya selalu
@@ -27,14 +32,16 @@ const TanggalSchema = z
 const Opsional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((v) => (v === null || v === "" ? undefined : v), schema.optional());
 
-const NominalSchema = z.coerce.number().positive();
+// Batasnya sama dengan form dashboard, karena bot memanggil service tanpa lewat schema form
+const NominalSchema = z.coerce.number().positive().max(MAX_NOMINAL);
+const NamaSchema = z.string().trim().min(1).max(MAX_NAMA);
 const KategoriSchema = z.string().min(1);
 
 const IntentSchema = z.discriminatedUnion("aksi", [
   z.object({
     aksi: z.literal("tambah"),
     jenis: JenisSchema,
-    nama: z.string().min(1),
+    nama: NamaSchema,
     nominal: NominalSchema,
     kategori: Opsional(KategoriSchema),
     tanggal: Opsional(TanggalSchema),
@@ -45,7 +52,7 @@ const IntentSchema = z.discriminatedUnion("aksi", [
     kataKunci: z.string().min(1),
     tanggal: Opsional(TanggalSchema),
     perubahan: z.object({
-      nama: Opsional(z.string().min(1)),
+      nama: Opsional(NamaSchema),
       nominal: Opsional(NominalSchema),
       kategori: Opsional(KategoriSchema),
       tanggal: Opsional(TanggalSchema),

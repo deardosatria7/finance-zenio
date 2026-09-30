@@ -5,6 +5,15 @@ import { getUserSessionSSR } from "@/lib/session";
 import { and, eq, gte, lt } from "drizzle-orm";
 import { getDateRange } from "@/lib/utils";
 
+/**
+ * Satu sel teks CSV. Kutip ganda digandakan supaya kolom tidak bergeser, dan nilai berawalan
+ * = + - @ diberi ' supaya Excel tidak menjalankannya sebagai formula (CSV injection).
+ */
+function selCsv(nilai: string) {
+  const aman = /^[=+\-@\t\r]/.test(nilai) ? `'${nilai}` : nilai;
+  return `"${aman.replace(/"/g, '""')}"`;
+}
+
 export async function GET(req: NextRequest) {
   const session = await getUserSessionSSR();
   const { searchParams } = new URL(req.url);
@@ -73,7 +82,7 @@ export async function GET(req: NextRequest) {
   const csvBody = rows
     .map((r) => {
       const tanggal = new Date(r.tanggal).toLocaleDateString("id-ID");
-      return `"${r.nama}","${r.kategori}",${r.nominal},"${tanggal}"`;
+      return `${selCsv(r.nama)},${selCsv(r.kategori)},${r.nominal},${selCsv(tanggal)}`;
     })
     .join("\n");
 

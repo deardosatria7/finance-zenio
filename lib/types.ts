@@ -25,22 +25,43 @@ export const KATEGORI_PENGELUARAN = [
   "Lainnya",
 ] as const;
 
+export const MAX_NAMA = 100;
+// Kolom numeric(15,2) menampung sampai 13 digit sebelum koma; angka di atasnya bikin error DB
+export const MAX_NOMINAL = 1_000_000_000_000;
+
+const NamaSchema = z
+  .string()
+  .trim()
+  .min(1, "Wajib diisi")
+  .max(MAX_NAMA, `Maksimal ${MAX_NAMA} karakter`);
+
+const NominalSchema = z
+  .number()
+  .positive("Tidak boleh nol/negatif!")
+  .max(MAX_NOMINAL, "Nominal terlalu besar");
+
+const IdSchema = z.number().int().positive();
+
+// Tipenya tetap string (kolom DB teks bebas), tapi nilainya harus dari daftar
+const kategoriDari = (daftar: readonly string[]) =>
+  z.string().refine((k) => daftar.includes(k), "Pilih kategori");
+
 export const PemasukanFormSchema = z.object({
-  nama_pemasukan: z.string().min(1, "Wajib diisi"),
-  nominal: z.number().min(0, "Tidak boleh nol/negatif!"),
-  kategori: z.string().min(1, "Pilih kategori"),
+  nama_pemasukan: NamaSchema,
+  nominal: NominalSchema,
+  kategori: kategoriDari(KATEGORI_PEMASUKAN),
 });
 
 export const EditPemasukanSchema = PemasukanFormSchema.extend({
-  id: z.number(),
+  id: IdSchema,
 });
 
 export const PengeluaranFormSchema = z.object({
-  nama_pengeluaran: z.string().min(1, "Wajib diisi"),
-  nominal: z.number().min(0, "Tidak boleh nol/negatif!"),
-  kategori: z.string().min(1, "Pilih kategori"),
+  nama_pengeluaran: NamaSchema,
+  nominal: NominalSchema,
+  kategori: kategoriDari(KATEGORI_PENGELUARAN),
 });
 
 export const EditPengeluaranSchema = PengeluaranFormSchema.extend({
-  id: z.number(),
+  id: IdSchema,
 });
