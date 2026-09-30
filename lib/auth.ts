@@ -13,8 +13,12 @@ export const auth = betterAuth({
       account,
     },
   }),
+  // Daftar lewat email ditutup: email tidak diverifikasi, jadi siapa pun bisa mendaftar dengan
+  // email orang lain lalu ikut masuk setelah pemiliknya login Google (auto-link). Login tetap
+  // bisa. Harus sama dengan pintarpy, karena endpoint sign-up di sana juga menulis ke tabel ini.
   emailAndPassword: {
     enabled: true,
+    disableSignUp: true,
   },
   socialProviders: {
     google: {
