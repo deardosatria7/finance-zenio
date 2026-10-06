@@ -138,7 +138,7 @@ export const pengeluaran = pgTable(
     namaPengeluaran: text("nama_pengeluaran").notNull(),
     nominal: numeric("nominal", { precision: 15, scale: 2 }).notNull(),
     kategori: text("kategori").notNull().default("Lainnya"),
-    walletId: integer("wallet_id"),
+    walletId: integer("wallet_id").notNull(),
   },
   (table) => [
     // wallet_id, user_id harus menunjuk wallet milik user yang sama
@@ -163,7 +163,7 @@ export const pemasukan = pgTable(
     namaPemasukan: text("nama_pemasukan").notNull(),
     nominal: numeric("nominal", { precision: 15, scale: 2 }).notNull(),
     kategori: text("kategori").notNull().default("Lainnya"),
-    walletId: integer("wallet_id"),
+    walletId: integer("wallet_id").notNull(),
   },
   (table) => [
     // wallet_id, user_id harus menunjuk wallet milik user yang sama
