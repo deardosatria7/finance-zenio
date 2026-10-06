@@ -4,6 +4,7 @@ import {
   KATEGORI_PEMASUKAN,
   KATEGORI_PENGELUARAN,
   MAX_NAMA,
+  MAX_NAMA_WALLET,
   MAX_NOMINAL,
 } from "../types";
 import { hariIniLengkapWIB, hariIniWIB } from "./waktu";
@@ -36,6 +37,8 @@ const Opsional = <T extends z.ZodType>(schema: T) =>
 const NominalSchema = z.coerce.number().positive().max(MAX_NOMINAL);
 const NamaSchema = z.string().trim().min(1).max(MAX_NAMA);
 const KategoriSchema = z.string().min(1);
+// Nama mentah dari pesan; dicocokkan dengan wallet milik user di bot.ts
+const WalletSchema = z.string().trim().min(1).max(MAX_NAMA_WALLET);
 
 const IntentSchema = z.discriminatedUnion("aksi", [
   z.object({
@@ -45,6 +48,7 @@ const IntentSchema = z.discriminatedUnion("aksi", [
     nominal: NominalSchema,
     kategori: Opsional(KategoriSchema),
     tanggal: Opsional(TanggalSchema),
+    wallet: Opsional(WalletSchema),
   }),
   z.object({
     aksi: z.literal("edit"),
@@ -56,6 +60,7 @@ const IntentSchema = z.discriminatedUnion("aksi", [
       nominal: Opsional(NominalSchema),
       kategori: Opsional(KategoriSchema),
       tanggal: Opsional(TanggalSchema),
+      wallet: Opsional(WalletSchema),
     }),
   }),
   z.object({
@@ -64,30 +69,31 @@ const IntentSchema = z.discriminatedUnion("aksi", [
     kataKunci: z.string().min(1),
     tanggal: Opsional(TanggalSchema),
   }),
-  z.object({ aksi: z.literal("saldo") }),
+  z.object({ aksi: z.literal("saldo"), wallet: Opsional(WalletSchema) }),
   z.object({
     aksi: z.literal("riwayat"),
     jenis: Opsional(JenisSchema),
     dari: Opsional(TanggalSchema),
     sampai: Opsional(TanggalSchema),
+    wallet: Opsional(WalletSchema),
   }),
   z.object({ aksi: z.literal("tidak_dikenal") }),
 ]);
 
 export type Intent = z.infer<typeof IntentSchema>;
 
-function systemPrompt() {
+function systemPrompt(namaWallet: string[]) {
   return `Kamu mesin pengurai pesan pencatat keuangan pribadi berbahasa Indonesia.
 Hari ini: ${hariIniLengkapWIB()} (WIB).
 
 Jawab HANYA satu objek JSON, tanpa penjelasan dan tanpa blok kode.
 
 Bentuk JSON sesuai "aksi":
-- {"aksi":"tambah","jenis":"pemasukan|pengeluaran","nama":string,"nominal":number,"kategori":string,"tanggal":"YYYY-MM-DD"|null}
-- {"aksi":"edit","jenis":"pemasukan|pengeluaran"|null,"kataKunci":string,"tanggal":"YYYY-MM-DD"|null,"perubahan":{"nama"?:string,"nominal"?:number,"kategori"?:string,"tanggal"?:"YYYY-MM-DD"}}
+- {"aksi":"tambah","jenis":"pemasukan|pengeluaran","nama":string,"nominal":number,"kategori":string,"tanggal":"YYYY-MM-DD"|null,"wallet":string|null}
+- {"aksi":"edit","jenis":"pemasukan|pengeluaran"|null,"kataKunci":string,"tanggal":"YYYY-MM-DD"|null,"perubahan":{"nama"?:string,"nominal"?:number,"kategori"?:string,"tanggal"?:"YYYY-MM-DD","wallet"?:string}}
 - {"aksi":"hapus","jenis":"pemasukan|pengeluaran"|null,"kataKunci":string,"tanggal":"YYYY-MM-DD"|null}
-- {"aksi":"saldo"}
-- {"aksi":"riwayat","jenis":"pemasukan|pengeluaran"|null,"dari":"YYYY-MM-DD"|null,"sampai":"YYYY-MM-DD"|null}
+- {"aksi":"saldo","wallet":string|null}
+- {"aksi":"riwayat","jenis":"pemasukan|pengeluaran"|null,"dari":"YYYY-MM-DD"|null,"sampai":"YYYY-MM-DD"|null,"wallet":string|null}
 - {"aksi":"tidak_dikenal"}  (kalau pesan tidak ada hubungannya dengan keuangan)
 
 Aturan:
@@ -100,15 +106,22 @@ Aturan:
   "kemarin" = sehari sebelum hari ini. "Senin kemarin" = hari Senin terakhir yang sudah lewat.
   "tanggal 3" = tanggal 3 bulan berjalan kalau sudah lewat, kalau belum berarti bulan lalu.
   Tanggal tidak boleh di masa depan.
+- Wallet milik user: ${JSON.stringify(namaWallet)}.
+  Isi "wallet" hanya kalau pesan menyebut sumber atau tujuan uangnya ("pakai gopay", "dari BCA",
+  "masuk ke rekening mandiri"). Tulis persis seperti di daftar kalau ada yang cocok; kalau tidak
+  ada yang cocok, tulis apa adanya. Kalau tidak disebut, null.
 
 Contoh:
 "makan siang 25rb" -> {"aksi":"tambah","jenis":"pengeluaran","nama":"Makan siang","nominal":25000,"kategori":"Makanan & Minuman","tanggal":null}
 "bensin 50rb kemarin" -> {"aksi":"tambah","jenis":"pengeluaran","nama":"Bensin","nominal":50000,"kategori":"Transportasi","tanggal":"<tanggal kemarin>"}
 "gajian 8,5jt" -> {"aksi":"tambah","jenis":"pemasukan","nama":"Gaji","nominal":8500000,"kategori":"Gaji","tanggal":null}
+"kopi 20rb pakai gopay" -> {"aksi":"tambah","jenis":"pengeluaran","nama":"Kopi","nominal":20000,"kategori":"Makanan & Minuman","tanggal":null,"wallet":"GoPay"}
 "yang bensin tadi ternyata 60rb" -> {"aksi":"edit","jenis":"pengeluaran","kataKunci":"bensin","tanggal":null,"perubahan":{"nominal":60000}}
 "ganti kategori kopi jadi hiburan" -> {"aksi":"edit","jenis":"pengeluaran","kataKunci":"kopi","tanggal":null,"perubahan":{"kategori":"Hiburan"}}
+"yang kopi tadi pindahin ke cash" -> {"aksi":"edit","jenis":"pengeluaran","kataKunci":"kopi","tanggal":null,"perubahan":{"wallet":"Cash"}}
 "hapus parkir kemarin" -> {"aksi":"hapus","jenis":"pengeluaran","kataKunci":"parkir","tanggal":"<tanggal kemarin>"}
-"sisa duitku berapa" -> {"aksi":"saldo"}
+"sisa duitku berapa" -> {"aksi":"saldo","wallet":null}
+"saldo bca berapa" -> {"aksi":"saldo","wallet":"BCA"}
 "pengeluaran minggu ini" -> {"aksi":"riwayat","jenis":"pengeluaran","dari":"<senin minggu ini>","sampai":"${hariIniWIB()}"}
 "halo apa kabar" -> {"aksi":"tidak_dikenal"}`;
 }
@@ -160,11 +173,15 @@ export function normalkanKategori(
 
 /**
  * Intent dari pesan user; null kalau jawaban LLM tidak lolos validasi (pemanggil membalas
- * contoh pesan). Melempar LLMUnavailableError kalau gateway sedang gangguan.
+ * contoh pesan). `namaWallet` dimasukkan ke prompt supaya LLM menulis nama wallet persis.
+ * Melempar LLMUnavailableError kalau gateway sedang gangguan.
  */
-export async function parseIntent(pesan: string): Promise<Intent | null> {
+export async function parseIntent(
+  pesan: string,
+  namaWallet: string[],
+): Promise<Intent | null> {
   const content = await chatCompletion([
-    { role: "system", content: systemPrompt() },
+    { role: "system", content: systemPrompt(namaWallet) },
     { role: "user", content: pesan.slice(0, MAX_PESAN) },
   ]);
 

@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   pgTable,
   pgEnum,
@@ -8,6 +8,8 @@ import {
   integer,
   index,
   uniqueIndex,
+  unique,
+  foreignKey,
   numeric,
   serial,
 } from "drizzle-orm/pg-core";
@@ -45,7 +47,7 @@ export const session = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
   },
-  (table) => [index("session_userId_idx").on(table.userId)]
+  (table) => [index("session_userId_idx").on(table.userId)],
 );
 
 export const account = pgTable(
@@ -69,7 +71,7 @@ export const account = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("account_userId_idx").on(table.userId)]
+  (table) => [index("account_userId_idx").on(table.userId)],
 );
 
 export const verification = pgTable(
@@ -85,36 +87,94 @@ export const verification = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("verification_identifier_idx").on(table.identifier)]
+  (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
 // =====================================================================
 // FINANCE-ZENIO
 // =====================================================================
 
+// TABLE WALLET PER USER
+export const wallet = pgTable(
+  "wallet",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    nama: text("nama").notNull(),
+    saldoAwal: numeric("saldo_awal", { precision: 15, scale: 2 })
+      .notNull()
+      .default("0"),
+    isDefault: boolean("is_default").notNull().default(false),
+
+    // wallet yang memiliki transaksi diarsipkan, bukan dihapus
+    archivedAt: timestamp("archived_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    // Target composite FK dari table transaksi
+    unique("wallet_id_user_id_uq").on(table.id, table.userId),
+    // Nama wallet unik per user
+    uniqueIndex("wallet_user_id_nama_uq").on(
+      table.userId,
+      sql`lower(${table.nama})`,
+    ),
+    uniqueIndex("wallet_default_per_user_uq")
+      .on(table.userId)
+      .where(sql`${table.isDefault} = true`),
+  ],
+);
+
 // TABLE PENGELUARAN (ID, NAMA_PENGELUARAN, NOMINAL, CREATED_AT, ID_USER, KATEGORI)
-export const pengeluaran = pgTable("pengeluaran", {
-  id: serial("id").primaryKey(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  namaPengeluaran: text("nama_pengeluaran").notNull(),
-  nominal: numeric("nominal", { precision: 15, scale: 2 }).notNull(),
-  kategori: text("kategori").notNull().default("Lainnya"),
-});
+export const pengeluaran = pgTable(
+  "pengeluaran",
+  {
+    id: serial("id").primaryKey(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    namaPengeluaran: text("nama_pengeluaran").notNull(),
+    nominal: numeric("nominal", { precision: 15, scale: 2 }).notNull(),
+    kategori: text("kategori").notNull().default("Lainnya"),
+    walletId: integer("wallet_id"),
+  },
+  (table) => [
+    // wallet_id, user_id harus menunjuk wallet milik user yang sama
+    foreignKey({
+      name: "pengeluaran_wallet_fk",
+      columns: [table.walletId, table.userId],
+      foreignColumns: [wallet.id, wallet.userId],
+    }),
+    index("pengeluaran_wallet_id_idx").on(table.walletId),
+  ],
+);
 
 // TABLE PEMASUKAN (ID, NAMA_PEMASUKAN, NOMINAL, CREATED_AT, ID_USER, KATEGORI)
-export const pemasukan = pgTable("pemasukan", {
-  id: serial("id").primaryKey(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  namaPemasukan: text("nama_pemasukan").notNull(),
-  nominal: numeric("nominal", { precision: 15, scale: 2 }).notNull(),
-  kategori: text("kategori").notNull().default("Lainnya"),
-});
+export const pemasukan = pgTable(
+  "pemasukan",
+  {
+    id: serial("id").primaryKey(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    namaPemasukan: text("nama_pemasukan").notNull(),
+    nominal: numeric("nominal", { precision: 15, scale: 2 }).notNull(),
+    kategori: text("kategori").notNull().default("Lainnya"),
+    walletId: integer("wallet_id"),
+  },
+  (table) => [
+    // wallet_id, user_id harus menunjuk wallet milik user yang sama
+    foreignKey({
+      name: "pemasukan_wallet_fk",
+      columns: [table.walletId, table.userId],
+      foreignColumns: [wallet.id, wallet.userId],
+    }),
+    index("pemasukan_wallet_id_idx").on(table.walletId),
+  ],
+);
 
 // TABLE CHAT_LINK: satu akun satu nomor WhatsApp, satu nomor satu akun
 export const chatLink = pgTable("chat_link", {
@@ -171,10 +231,10 @@ export const userCourseProgress = pgTable(
     // hanya 1 progress per user per course
     uniqueIndex("user_course_progress_user_id_course_id_uq").on(
       table.userId,
-      table.courseId
+      table.courseId,
     ),
     index("user_course_progress_user_id_idx").on(table.userId),
-  ]
+  ],
 );
 
 export const blogPost = pgTable("blog_post", {
@@ -198,6 +258,7 @@ export const userRelations = relations(user, ({ many }) => ({
   accounts: many(account),
   pengeluaran: many(pengeluaran),
   pemasukan: many(pemasukan),
+  wallets: many(wallet),
   courseProgress: many(userCourseProgress),
 }));
 
@@ -215,19 +276,37 @@ export const accountRelations = relations(account, ({ one }) => ({
   }),
 }));
 
-// PENGELUARAN → USER
+// WALLET → USER, TRANSAKSI
+export const walletRelations = relations(wallet, ({ one, many }) => ({
+  user: one(user, {
+    fields: [wallet.userId],
+    references: [user.id],
+  }),
+  pengeluaran: many(pengeluaran),
+  pemasukan: many(pemasukan),
+}));
+
+// PENGELUARAN → USER, WALLET
 export const pengeluaranRelations = relations(pengeluaran, ({ one }) => ({
   user: one(user, {
     fields: [pengeluaran.userId],
     references: [user.id],
   }),
+  wallet: one(wallet, {
+    fields: [pengeluaran.walletId],
+    references: [wallet.id],
+  }),
 }));
 
-// PEMASUKAN → USER
+// PEMASUKAN → USER, WALLET
 export const pemasukanRelations = relations(pemasukan, ({ one }) => ({
   user: one(user, {
     fields: [pemasukan.userId],
     references: [user.id],
+  }),
+  wallet: one(wallet, {
+    fields: [pemasukan.walletId],
+    references: [wallet.id],
   }),
 }));
 
@@ -248,5 +327,5 @@ export const userCourseProgressRelations = relations(
       fields: [userCourseProgress.courseId],
       references: [course.id],
     }),
-  })
+  }),
 );

@@ -1,6 +1,6 @@
 "use client";
 
-import { Pengeluaran } from "@/lib/types";
+import { Pengeluaran, type Wallet, type WalletPilihan } from "@/lib/types";
 import {
   Table,
   TableBody,
@@ -15,10 +15,14 @@ import { ButtonDeletePengeluaran } from "./delete-pengeluaran-button";
 import { Badge } from "@/components/ui/badge";
 
 interface PengeluaranTableProps {
-  data: Pengeluaran[];
+  data: (Pengeluaran & { wallet: Pick<Wallet, "nama"> | null })[];
+  wallets: WalletPilihan[];
 }
 
-export default function PengeluaranTable({ data }: PengeluaranTableProps) {
+export default function PengeluaranTable({
+  data,
+  wallets,
+}: PengeluaranTableProps) {
   return (
     <div className="rounded-lg border bg-white text-neutral-900 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800">
       <Table>
@@ -29,6 +33,9 @@ export default function PengeluaranTable({ data }: PengeluaranTableProps) {
             </TableHead>
             <TableHead className="text-neutral-600 dark:text-neutral-400">
               Kategori
+            </TableHead>
+            <TableHead className="text-neutral-600 dark:text-neutral-400">
+              Wallet
             </TableHead>
             <TableHead className="text-neutral-600 dark:text-neutral-400">
               Tanggal
@@ -46,7 +53,7 @@ export default function PengeluaranTable({ data }: PengeluaranTableProps) {
           {data.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={5}
+                colSpan={6}
                 className="py-8 text-center text-neutral-500 dark:text-neutral-400"
               >
                 Belum ada data pengeluaran
@@ -67,6 +74,10 @@ export default function PengeluaranTable({ data }: PengeluaranTableProps) {
                 </TableCell>
 
                 <TableCell className="text-neutral-500 dark:text-neutral-400">
+                  {item.wallet?.nama ?? "-"}
+                </TableCell>
+
+                <TableCell className="text-neutral-500 dark:text-neutral-400">
                   {formatDate(item.createdAt)}
                 </TableCell>
 
@@ -80,7 +91,9 @@ export default function PengeluaranTable({ data }: PengeluaranTableProps) {
                       nama_pengeluaran: item.namaPengeluaran,
                       nominal: Number(item.nominal),
                       kategori: item.kategori,
+                      wallet_id: item.walletId,
                     }}
+                    wallets={wallets}
                   />
                   <ButtonDeletePengeluaran pengeluaran_id={item.id} />
                 </TableCell>

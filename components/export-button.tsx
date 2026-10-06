@@ -7,13 +7,20 @@ interface ExportButtonProps {
   type: "pemasukan" | "pengeluaran";
   month?: number;
   year?: number;
+  wallet?: number;
 }
 
-export default function ExportButton({ type, month, year }: ExportButtonProps) {
+export default function ExportButton({
+  type,
+  month,
+  year,
+  wallet,
+}: ExportButtonProps) {
   function handleExport() {
     const params = new URLSearchParams({ type });
     if (month) params.set("month", String(month));
     if (year) params.set("year", String(year));
+    if (wallet) params.set("wallet", String(wallet));
     window.location.href = `/api/export?${params.toString()}`;
   }
 

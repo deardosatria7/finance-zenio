@@ -1,8 +1,9 @@
 import { db } from "@/db";
-import { pemasukan, pengeluaran } from "@/db/schema";
+import { pemasukan, pengeluaran, wallet } from "@/db/schema";
 import { and, desc, eq, gte, ilike, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getRateLimiter } from "./rate-limiter";
+import { cekWalletAktif } from "./wallets";
 import {
   EditPemasukanSchema,
   EditPengeluaranSchema,
@@ -30,12 +31,14 @@ export async function addPemasukan(
   data: z.infer<typeof PemasukanFormSchema> & Tanggal,
 ) {
   await consumerRateLimit(`pemasukan_${userId}`);
+  await cekWalletAktif(userId, data.wallet_id);
 
   // id dikembalikan supaya pemanggil (bot WhatsApp) bisa menawarkan urungkan
   const [baris] = await db
     .insert(pemasukan)
     .values({
       userId,
+      walletId: data.wallet_id,
       nominal: data.nominal.toFixed(2),
       namaPemasukan: data.nama_pemasukan,
       kategori: data.kategori,
@@ -50,9 +53,12 @@ export async function editPemasukan(
   userId: string,
   data: z.infer<typeof EditPemasukanSchema> & Tanggal,
 ) {
+  await cekWalletAktif(userId, data.wallet_id);
+
   const updated = await db
     .update(pemasukan)
     .set({
+      walletId: data.wallet_id,
       nominal: data.nominal.toFixed(2),
       namaPemasukan: data.nama_pemasukan,
       kategori: data.kategori,
@@ -82,11 +88,13 @@ export async function addPengeluaran(
   data: z.infer<typeof PengeluaranFormSchema> & Tanggal,
 ) {
   await consumerRateLimit(`pengeluaran_${userId}`);
+  await cekWalletAktif(userId, data.wallet_id);
 
   const [baris] = await db
     .insert(pengeluaran)
     .values({
       userId,
+      walletId: data.wallet_id,
       nominal: data.nominal.toFixed(2),
       namaPengeluaran: data.nama_pengeluaran,
       kategori: data.kategori,
@@ -101,9 +109,12 @@ export async function editPengeluaran(
   userId: string,
   data: z.infer<typeof EditPengeluaranSchema> & Tanggal,
 ) {
+  await cekWalletAktif(userId, data.wallet_id);
+
   const updated = await db
     .update(pengeluaran)
     .set({
+      walletId: data.wallet_id,
       nominal: data.nominal.toFixed(2),
       namaPengeluaran: data.nama_pengeluaran,
       kategori: data.kategori,
@@ -128,25 +139,52 @@ export async function deletePengeluaran(userId: string, id: number) {
   }
 }
 
-export async function getSaldo(userId: string) {
-  const [[masuk], [keluar]] = await Promise.all([
+/**
+ * Total pemasukan, pengeluaran, dan saldo (termasuk saldo awal). Tanpa `walletId` berarti semua
+ * wallet, termasuk yang diarsipkan, karena uangnya tetap ada.
+ */
+export async function getSaldo(userId: string, walletId?: number) {
+  const [[masuk], [keluar], [awal]] = await Promise.all([
     db
       .select({ total: sql<string>`COALESCE(SUM(${pemasukan.nominal}), 0)` })
       .from(pemasukan)
-      .where(eq(pemasukan.userId, userId)),
+      .where(
+        and(
+          eq(pemasukan.userId, userId),
+          walletId !== undefined ? eq(pemasukan.walletId, walletId) : undefined,
+        ),
+      ),
     db
       .select({ total: sql<string>`COALESCE(SUM(${pengeluaran.nominal}), 0)` })
       .from(pengeluaran)
-      .where(eq(pengeluaran.userId, userId)),
+      .where(
+        and(
+          eq(pengeluaran.userId, userId),
+          walletId !== undefined
+            ? eq(pengeluaran.walletId, walletId)
+            : undefined,
+        ),
+      ),
+    db
+      .select({ total: sql<string>`COALESCE(SUM(${wallet.saldoAwal}), 0)` })
+      .from(wallet)
+      .where(
+        and(
+          eq(wallet.userId, userId),
+          walletId !== undefined ? eq(wallet.id, walletId) : undefined,
+        ),
+      ),
   ]);
 
   const totalPemasukan = Number(masuk.total);
   const totalPengeluaran = Number(keluar.total);
+  const saldoAwal = Number(awal.total);
 
   return {
     totalPemasukan,
     totalPengeluaran,
-    saldo: totalPemasukan - totalPengeluaran,
+    saldoAwal,
+    saldo: saldoAwal + totalPemasukan - totalPengeluaran,
   };
 }
 
@@ -157,14 +195,23 @@ export type Transaksi = {
   nominal: number;
   kategori: string;
   createdAt: Date;
+  // null untuk transaksi dari aplikasi versi lama yang belum diisi wallet-nya (sebelum migrasi B)
+  walletNama: string | null;
 };
 
 /** Penyempit opsional riwayat; `dari` inklusif, `sampai` eksklusif */
 export type RiwayatFilter = {
   jenis?: "pemasukan" | "pengeluaran";
+  walletId?: number;
   dari?: Date;
   sampai?: Date;
 };
+
+/** Kondisi wallet opsional; `and()` mengabaikan undefined */
+const diWallet = (
+  kolom: typeof pemasukan.walletId | typeof pengeluaran.walletId,
+  walletId?: number,
+) => (walletId !== undefined ? eq(kolom, walletId) : undefined);
 
 /** Transaksi terbaru dari kedua tabel, dari yang paling baru */
 export async function getRiwayat(
@@ -185,41 +232,53 @@ export async function getRiwayat(
     filter.jenis === "pengeluaran"
       ? []
       : db
-          .select()
+          .select({ t: pemasukan, walletNama: wallet.nama })
           .from(pemasukan)
+          .leftJoin(wallet, eq(wallet.id, pemasukan.walletId))
           .where(
-            and(eq(pemasukan.userId, userId), rentang(pemasukan.createdAt)),
+            and(
+              eq(pemasukan.userId, userId),
+              rentang(pemasukan.createdAt),
+              diWallet(pemasukan.walletId, filter.walletId),
+            ),
           )
           .orderBy(desc(pemasukan.createdAt))
           .limit(limit),
     filter.jenis === "pemasukan"
       ? []
       : db
-          .select()
+          .select({ t: pengeluaran, walletNama: wallet.nama })
           .from(pengeluaran)
+          .leftJoin(wallet, eq(wallet.id, pengeluaran.walletId))
           .where(
-            and(eq(pengeluaran.userId, userId), rentang(pengeluaran.createdAt)),
+            and(
+              eq(pengeluaran.userId, userId),
+              rentang(pengeluaran.createdAt),
+              diWallet(pengeluaran.walletId, filter.walletId),
+            ),
           )
           .orderBy(desc(pengeluaran.createdAt))
           .limit(limit),
   ]);
 
   return [
-    ...masuk.map((p) => ({
+    ...masuk.map(({ t, walletNama }) => ({
       jenis: "pemasukan" as const,
-      id: p.id,
-      nama: p.namaPemasukan,
-      nominal: Number(p.nominal),
-      kategori: p.kategori,
-      createdAt: p.createdAt,
+      id: t.id,
+      nama: t.namaPemasukan,
+      nominal: Number(t.nominal),
+      kategori: t.kategori,
+      createdAt: t.createdAt,
+      walletNama,
     })),
-    ...keluar.map((p) => ({
+    ...keluar.map(({ t, walletNama }) => ({
       jenis: "pengeluaran" as const,
-      id: p.id,
-      nama: p.namaPengeluaran,
-      nominal: Number(p.nominal),
-      kategori: p.kategori,
-      createdAt: p.createdAt,
+      id: t.id,
+      nama: t.namaPengeluaran,
+      nominal: Number(t.nominal),
+      kategori: t.kategori,
+      createdAt: t.createdAt,
+      walletNama,
     })),
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -243,14 +302,18 @@ export async function cariTransaksi(
     filter.jenis === "pengeluaran"
       ? []
       : db
-          .select()
+          .select({ t: pemasukan, walletNama: wallet.nama })
           .from(pemasukan)
+          .leftJoin(wallet, eq(wallet.id, pemasukan.walletId))
           .where(
             and(
               eq(pemasukan.userId, userId),
               ilike(pemasukan.namaPemasukan, pola),
               filter.dari ? gte(pemasukan.createdAt, filter.dari) : undefined,
-              filter.sampai ? lt(pemasukan.createdAt, filter.sampai) : undefined,
+              filter.sampai
+                ? lt(pemasukan.createdAt, filter.sampai)
+                : undefined,
+              diWallet(pemasukan.walletId, filter.walletId),
             ),
           )
           .orderBy(desc(pemasukan.createdAt))
@@ -258,8 +321,9 @@ export async function cariTransaksi(
     filter.jenis === "pemasukan"
       ? []
       : db
-          .select()
+          .select({ t: pengeluaran, walletNama: wallet.nama })
           .from(pengeluaran)
+          .leftJoin(wallet, eq(wallet.id, pengeluaran.walletId))
           .where(
             and(
               eq(pengeluaran.userId, userId),
@@ -268,6 +332,7 @@ export async function cariTransaksi(
               filter.sampai
                 ? lt(pengeluaran.createdAt, filter.sampai)
                 : undefined,
+              diWallet(pengeluaran.walletId, filter.walletId),
             ),
           )
           .orderBy(desc(pengeluaran.createdAt))
@@ -275,21 +340,23 @@ export async function cariTransaksi(
   ]);
 
   return [
-    ...masuk.map((p) => ({
+    ...masuk.map(({ t, walletNama }) => ({
       jenis: "pemasukan" as const,
-      id: p.id,
-      nama: p.namaPemasukan,
-      nominal: Number(p.nominal),
-      kategori: p.kategori,
-      createdAt: p.createdAt,
+      id: t.id,
+      nama: t.namaPemasukan,
+      nominal: Number(t.nominal),
+      kategori: t.kategori,
+      createdAt: t.createdAt,
+      walletNama,
     })),
-    ...keluar.map((p) => ({
+    ...keluar.map(({ t, walletNama }) => ({
       jenis: "pengeluaran" as const,
-      id: p.id,
-      nama: p.namaPengeluaran,
-      nominal: Number(p.nominal),
-      kategori: p.kategori,
-      createdAt: p.createdAt,
+      id: t.id,
+      nama: t.namaPengeluaran,
+      nominal: Number(t.nominal),
+      kategori: t.kategori,
+      createdAt: t.createdAt,
+      walletNama,
     })),
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -302,6 +369,7 @@ export type PerubahanTransaksi = {
   nominal?: number;
   kategori?: string;
   tanggal?: Date;
+  walletId?: number;
 };
 
 /**
@@ -315,7 +383,12 @@ export async function updateTransaksi(
   id: number,
   perubahan: PerubahanTransaksi,
 ) {
+  if (perubahan.walletId !== undefined) {
+    await cekWalletAktif(userId, perubahan.walletId);
+  }
+
   const isi = {
+    walletId: perubahan.walletId,
     nominal: perubahan.nominal?.toFixed(2),
     kategori: perubahan.kategori,
     createdAt: perubahan.tanggal,

@@ -1,6 +1,6 @@
 "use client";
 
-import { Pemasukan } from "@/lib/types";
+import { Pemasukan, type Wallet, type WalletPilihan } from "@/lib/types";
 import {
   Table,
   TableBody,
@@ -15,10 +15,11 @@ import { ButtonDeletePemasukan } from "./delete-pemasukan-button";
 import { Badge } from "@/components/ui/badge";
 
 interface PemasukanTableProps {
-  data: Pemasukan[];
+  data: (Pemasukan & { wallet: Pick<Wallet, "nama"> | null })[];
+  wallets: WalletPilihan[];
 }
 
-export default function PemasukanTable({ data }: PemasukanTableProps) {
+export default function PemasukanTable({ data, wallets }: PemasukanTableProps) {
   return (
     <div className="rounded-lg border bg-white text-neutral-900 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800">
       <Table>
@@ -29,6 +30,9 @@ export default function PemasukanTable({ data }: PemasukanTableProps) {
             </TableHead>
             <TableHead className="text-neutral-600 dark:text-neutral-400">
               Kategori
+            </TableHead>
+            <TableHead className="text-neutral-600 dark:text-neutral-400">
+              Wallet
             </TableHead>
             <TableHead className="text-neutral-600 dark:text-neutral-400">
               Tanggal
@@ -46,7 +50,7 @@ export default function PemasukanTable({ data }: PemasukanTableProps) {
           {data.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={5}
+                colSpan={6}
                 className="py-8 text-center text-neutral-500 dark:text-neutral-400"
               >
                 Belum ada data pemasukan
@@ -67,6 +71,10 @@ export default function PemasukanTable({ data }: PemasukanTableProps) {
                 </TableCell>
 
                 <TableCell className="text-neutral-500 dark:text-neutral-400">
+                  {item.wallet?.nama ?? "-"}
+                </TableCell>
+
+                <TableCell className="text-neutral-500 dark:text-neutral-400">
                   {formatDate(item.createdAt)}
                 </TableCell>
 
@@ -80,7 +88,9 @@ export default function PemasukanTable({ data }: PemasukanTableProps) {
                       nama_pemasukan: item.namaPemasukan,
                       nominal: Number(item.nominal),
                       kategori: item.kategori,
+                      wallet_id: item.walletId,
                     }}
+                    wallets={wallets}
                   />
                   <ButtonDeletePemasukan pemasukan_id={item.id} />
                 </TableCell>

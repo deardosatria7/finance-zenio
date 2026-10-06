@@ -1,9 +1,12 @@
 import { InferSelectModel } from "drizzle-orm";
-import { pemasukan, pengeluaran } from "@/db/schema";
+import { pemasukan, pengeluaran, wallet } from "@/db/schema";
 import { z } from "zod";
 
 export type Pemasukan = InferSelectModel<typeof pemasukan>;
 export type Pengeluaran = InferSelectModel<typeof pengeluaran>;
+export type Wallet = InferSelectModel<typeof wallet>;
+/** Data wallet yang dikirim ke pilihan wallet di form transaksi */
+export type WalletPilihan = Pick<Wallet, "id" | "nama" | "isDefault">;
 
 export const KATEGORI_PEMASUKAN = [
   "Gaji",
@@ -41,6 +44,7 @@ const NominalSchema = z
   .max(MAX_NOMINAL, "Nominal terlalu besar");
 
 const IdSchema = z.number().int().positive();
+const WalletIdSchema = z.number({ error: "Pilih wallet" }).int().positive();
 
 // Tipenya tetap string (kolom DB teks bebas), tapi nilainya harus dari daftar
 const kategoriDari = (daftar: readonly string[]) =>
@@ -50,6 +54,7 @@ export const PemasukanFormSchema = z.object({
   nama_pemasukan: NamaSchema,
   nominal: NominalSchema,
   kategori: kategoriDari(KATEGORI_PEMASUKAN),
+  wallet_id: WalletIdSchema,
 });
 
 export const EditPemasukanSchema = PemasukanFormSchema.extend({
@@ -60,8 +65,28 @@ export const PengeluaranFormSchema = z.object({
   nama_pengeluaran: NamaSchema,
   nominal: NominalSchema,
   kategori: kategoriDari(KATEGORI_PENGELUARAN),
+  wallet_id: WalletIdSchema,
 });
 
 export const EditPengeluaranSchema = PengeluaranFormSchema.extend({
+  id: IdSchema,
+});
+
+export const MAX_NAMA_WALLET = 50;
+
+export const WalletFormSchema = z.object({
+  nama: z
+    .string()
+    .trim()
+    .min(1, "Wajib diisi")
+    .max(MAX_NAMA_WALLET, `Maksimal ${MAX_NAMA_WALLET} karakter`),
+  // Saldo boleh nol, namun tidak boleh negatif
+  saldo_awal: z
+    .number()
+    .min(0, "Tidak boleh negatif")
+    .max(MAX_NOMINAL, "Nominal terlalu besar"),
+});
+
+export const EditWalletSchema = WalletFormSchema.extend({
   id: IdSchema,
 });

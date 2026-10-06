@@ -17,6 +17,7 @@ import {
   getWhatsappRateLimiter,
 } from "../rate-limiter";
 import { formatRupiah } from "../utils";
+import { getSaldoPerWallet, getWallets } from "../wallets";
 import { normalkanKategori, parseIntent, type Intent } from "./intent";
 import {
   getUserIdByChat,
@@ -60,27 +61,81 @@ const BANTUAN = [
   "• makan siang 25rb",
   "• kemarin bensin 50rb",
   "• gajian 8,5jt",
+  "• kopi 20rb pakai gopay",
   "• yang bensin tadi ternyata 60rb",
   "• hapus parkir kemarin",
   "• saldo",
+  "• saldo gopay",
   "• riwayat",
   "",
   'Balas "batal" untuk mengurungkan transaksi yang baru dicatat.',
   'Ketik "putus" untuk melepas nomor ini dari akunmu.',
 ].join("\n");
 
+type WalletUser = Awaited<ReturnType<typeof getWallets>>[number];
+
 function ringkas(t: Transaksi | Kandidat) {
   const tanda = t.jenis === "pemasukan" ? "+" : "-";
   const tanggal = formatTanggalWIB(new Date(t.createdAt));
-  return `${t.nama} ${tanda}${formatRupiah(t.nominal)} (${t.kategori}), ${tanggal}`;
+  const keterangan = t.walletNama ? `${t.kategori}, ${t.walletNama}` : t.kategori;
+  return `${t.nama} ${tanda}${formatRupiah(t.nominal)} (${keterangan}), ${tanggal}`;
 }
 
-async function balasSaldo(jid: string, userId: string) {
-  const { totalPemasukan, totalPengeluaran, saldo } = await getSaldo(userId);
+/**
+ * Wallet aktif yang disebut di pesan. undefined kalau tidak disebut; null kalau namanya tidak
+ * dikenal dan user sudah dibalas daftar wallet-nya. Nama asing ditolak, bukan dialihkan ke
+ * default, supaya transaksi tidak diam-diam masuk ke wallet yang salah.
+ */
+async function walletDariIntent(
+  jid: string,
+  wallets: WalletUser[],
+  nama: string | undefined,
+) {
+  if (nama === undefined) return undefined;
+
+  const cocok = wallets.find(
+    (w) => w.nama.toLowerCase() === nama.trim().toLowerCase(),
+  );
+  if (!cocok) {
+    await kirimPesan(
+      jid,
+      `Wallet "${nama}" tidak ada. Wallet kamu: ${wallets.map((w) => w.nama).join(", ")}.`,
+    );
+    return null;
+  }
+
+  return cocok;
+}
+
+async function balasSaldo(jid: string, userId: string, wallet?: WalletUser) {
+  if (wallet) {
+    const { totalPemasukan, totalPengeluaran, saldo } = await getSaldo(
+      userId,
+      wallet.id,
+    );
+    await kirimPesan(
+      jid,
+      [
+        `Saldo ${wallet.nama}: ${formatRupiah(saldo)}`,
+        `Total pemasukan: ${formatRupiah(totalPemasukan)}`,
+        `Total pengeluaran: ${formatRupiah(totalPengeluaran)}`,
+      ].join("\n"),
+    );
+    return;
+  }
+
+  const [{ totalPemasukan, totalPengeluaran, saldo }, perWallet] =
+    await Promise.all([getSaldo(userId), getSaldoPerWallet(userId)]);
+  const rincian = perWallet
+    .filter((w) => w.archivedAt === null)
+    .map((w) => `• ${w.nama}: ${formatRupiah(w.saldo)}`);
+
   await kirimPesan(
     jid,
     [
       `Saldo: ${formatRupiah(saldo)}`,
+      ...rincian,
+      "",
       `Total pemasukan: ${formatRupiah(totalPemasukan)}`,
       `Total pengeluaran: ${formatRupiah(totalPengeluaran)}`,
     ].join("\n"),
@@ -109,7 +164,15 @@ async function simpanTambah(
   jid: string,
   userId: string,
   intent: Extract<Intent, { aksi: "tambah" }>,
+  wallets: WalletUser[],
 ) {
+  const disebut = await walletDariIntent(jid, wallets, intent.wallet);
+  if (disebut === null) return;
+
+  // getWallets() selalu memastikan wallet default ada, dan wallet default tidak bisa diarsipkan
+  const tujuan = disebut ?? wallets.find((w) => w.isDefault);
+  if (!tujuan) throw new Error("Wallet default tidak ditemukan");
+
   const kategori = normalkanKategori(intent.jenis, intent.kategori);
   const tanggal = tanggalKeDate(intent.tanggal);
 
@@ -119,12 +182,14 @@ async function simpanTambah(
           nama_pemasukan: intent.nama,
           nominal: intent.nominal,
           kategori,
+          wallet_id: tujuan.id,
           tanggal,
         })
       : await addPengeluaran(userId, {
           nama_pengeluaran: intent.nama,
           nominal: intent.nominal,
           kategori,
+          wallet_id: tujuan.id,
           tanggal,
         });
 
@@ -133,7 +198,7 @@ async function simpanTambah(
   const tanda = intent.jenis === "pemasukan" ? "+" : "-";
   await kirimPesan(
     jid,
-    `Tercatat: ${intent.nama} ${tanda}${formatRupiah(intent.nominal)} (${kategori}), ` +
+    `Tercatat di ${tujuan.nama}: ${intent.nama} ${tanda}${formatRupiah(intent.nominal)} (${kategori}), ` +
       `${formatTanggalWIB(baris.createdAt)}\n\n` +
       'Balas "batal" kalau salah.',
   );
@@ -159,6 +224,7 @@ function perubahanDariIntent(
       ? normalkanKategori(jenis, perubahan.kategori)
       : undefined,
     tanggal: tanggalKeDate(perubahan?.tanggal),
+    walletId: perubahan?.wallet?.id,
   };
 }
 
@@ -186,6 +252,8 @@ async function jalankanPilihan(
       perubahan.nominal && `nominal jadi ${formatRupiah(perubahan.nominal)}`,
       perubahan.kategori && `kategori jadi ${perubahan.kategori}`,
       perubahan.tanggal && `tanggal jadi ${formatTanggalWIB(perubahan.tanggal)}`,
+      pilihan.perubahan?.wallet &&
+        `wallet jadi ${pilihan.perubahan.wallet.nama}`,
     ].filter(Boolean);
 
     await kirimPesan(jid, `Diubah: ${kandidat.nama} — ${rincian.join(", ")}.`);
@@ -227,6 +295,7 @@ async function mulaiEditAtauHapus(
   jid: string,
   userId: string,
   intent: Extract<Intent, { aksi: "edit" | "hapus" }>,
+  wallets: WalletUser[],
 ) {
   // LLM kadang mengembalikan edit tanpa isi perubahan; tanpa ini service dipanggil dengan
   // kumpulan kolom kosong dan melempar
@@ -236,6 +305,17 @@ async function mulaiEditAtauHapus(
   ) {
     await kirimPesan(jid, "Mau diubah jadi apa? Sebutkan nominal, nama, atau kategorinya.");
     return;
+  }
+
+  // Wallet tujuan dicek sekarang, supaya nama yang salah ditolak sebelum user disuruh memilih
+  let perubahan: Pilihan["perubahan"];
+  if (intent.aksi === "edit") {
+    const wallet = await walletDariIntent(jid, wallets, intent.perubahan.wallet);
+    if (wallet === null) return;
+    perubahan = {
+      ...intent.perubahan,
+      wallet: wallet && { id: wallet.id, nama: wallet.nama },
+    };
   }
 
   const ditemukan = await cariTransaksi(userId, intent.kataKunci, {
@@ -257,32 +337,39 @@ async function mulaiEditAtauHapus(
     createdAt: t.createdAt.toISOString(),
   }));
 
-  await tawarkanKandidat(
-    jid,
-    intent.aksi,
-    kandidat,
-    intent.aksi === "edit" ? intent.perubahan : undefined,
-  );
+  await tawarkanKandidat(jid, intent.aksi, kandidat, perubahan);
 }
 
-async function jalankanIntent(jid: string, userId: string, intent: Intent) {
+async function jalankanIntent(
+  jid: string,
+  userId: string,
+  intent: Intent,
+  wallets: WalletUser[],
+) {
   switch (intent.aksi) {
     case "tambah":
-      await simpanTambah(jid, userId, intent);
+      await simpanTambah(jid, userId, intent, wallets);
       return;
-    case "saldo":
-      await balasSaldo(jid, userId);
+    case "saldo": {
+      const wallet = await walletDariIntent(jid, wallets, intent.wallet);
+      if (wallet === null) return;
+      await balasSaldo(jid, userId, wallet);
       return;
-    case "riwayat":
+    }
+    case "riwayat": {
+      const wallet = await walletDariIntent(jid, wallets, intent.wallet);
+      if (wallet === null) return;
       await balasRiwayat(jid, userId, {
         jenis: intent.jenis,
+        walletId: wallet?.id,
         dari: intent.dari ? awalHariWIB(intent.dari) : undefined,
         sampai: intent.sampai ? setelahHariWIB(intent.sampai) : undefined,
       });
       return;
+    }
     case "edit":
     case "hapus":
-      await mulaiEditAtauHapus(jid, userId, intent);
+      await mulaiEditAtauHapus(jid, userId, intent, wallets);
       return;
     case "tidak_dikenal":
       await kirimPesan(jid, TIDAK_PAHAM);
@@ -455,12 +542,16 @@ export async function tanganiPesan(pesan: PesanMasuk) {
 
   await setTyping(balasKe, true);
   try {
-    const intent = await parseIntent(teks);
+    const wallets = await getWallets(userId);
+    const intent = await parseIntent(
+      teks,
+      wallets.map((w) => w.nama),
+    );
     if (!intent) {
       await kirimPesan(balasKe, TIDAK_PAHAM);
       return;
     }
-    await jalankanIntent(balasKe, userId, intent);
+    await jalankanIntent(balasKe, userId, intent, wallets);
   } catch (error) {
     // Gateway LLM gangguan beda dengan pesan yang tidak dipahami: user perlu tahu pesannya
     // belum tercatat, dan bahwa saldo/riwayat tetap bisa dipakai

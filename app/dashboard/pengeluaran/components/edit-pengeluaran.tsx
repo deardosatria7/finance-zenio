@@ -5,7 +5,11 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { EditPengeluaranSchema, KATEGORI_PENGELUARAN } from "@/lib/types";
+import {
+  EditPengeluaranSchema,
+  KATEGORI_PENGELUARAN,
+  type WalletPilihan,
+} from "@/lib/types";
 
 import {
   Dialog,
@@ -39,12 +43,17 @@ import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 
 type EditPengeluaranFormProps = {
-  data: z.infer<typeof EditPengeluaranSchema>;
+  // wallet_id null untuk transaksi yang belum punya wallet (sebelum migrasi B)
+  data: Omit<z.infer<typeof EditPengeluaranSchema>, "wallet_id"> & {
+    wallet_id: number | null;
+  };
+  wallets: WalletPilihan[];
   onSuccess?: () => void;
 };
 
 export function ButtonEditPengeluaran({
   data,
+  wallets,
   onSuccess,
 }: EditPengeluaranFormProps) {
   const [open, setOpen] = useState(false);
@@ -63,7 +72,11 @@ export function ButtonEditPengeluaran({
           <DialogHeader>
             <DialogTitle>Edit Pengeluaran</DialogTitle>
           </DialogHeader>
-          <EditPengeluaranForm data={data} onSuccess={() => setOpen(false)} />
+          <EditPengeluaranForm
+            data={data}
+            wallets={wallets}
+            onSuccess={() => setOpen(false)}
+          />
         </DialogContent>
       </Dialog>
     </>
@@ -72,13 +85,18 @@ export function ButtonEditPengeluaran({
 
 export function EditPengeluaranForm({
   data,
+  wallets,
   onSuccess,
 }: EditPengeluaranFormProps) {
   const [loadingStates, setLoadingStates] = useState({ isSubmitting: false });
   const router = useRouter();
   const form = useForm<z.infer<typeof EditPengeluaranSchema>>({
     resolver: zodResolver(EditPengeluaranSchema),
-    defaultValues: data,
+    defaultValues: {
+      ...data,
+      // Wallet arsip tidak ada di pilihan, jadi user diminta memilih wallet aktif
+      wallet_id: wallets.find((w) => w.id === data.wallet_id)?.id,
+    },
   });
 
   async function onSubmit(values: z.infer<typeof EditPengeluaranSchema>) {
@@ -134,6 +152,34 @@ export function EditPengeluaranForm({
                   {KATEGORI_PENGELUARAN.map((k) => (
                     <SelectItem key={k} value={k}>
                       {k}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="wallet_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Wallet</FormLabel>
+              <Select
+                onValueChange={(v) => field.onChange(Number(v))}
+                defaultValue={field.value ? String(field.value) : undefined}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih wallet" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {wallets.map((w) => (
+                    <SelectItem key={w.id} value={String(w.id)}>
+                      {w.nama}
                     </SelectItem>
                   ))}
                 </SelectContent>
