@@ -4,6 +4,7 @@ import {
   Home,
   Inbox,
   MessageCircle,
+  Wallet,
 } from "lucide-react";
 
 import {
@@ -40,6 +41,11 @@ const items = [
         title: "Pengeluaran",
         url: "/dashboard/pengeluaran",
         icon: BanknoteArrowUp,
+      },
+      {
+        title: "Wallet",
+        url: "/dashboard/wallet",
+        icon: Wallet,
       },
     ],
   },

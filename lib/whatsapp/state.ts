@@ -21,6 +21,8 @@ export type Kandidat = {
   kategori: string;
   /** ISO string; Date tidak selamat melewati JSON */
   createdAt: string;
+  /** Opsional karena kandidat yang tersimpan sebelum fitur wallet tidak punya field ini */
+  walletNama?: string | null;
 };
 
 /** Daftar kandidat yang sedang menunggu user memilih nomornya */
@@ -32,6 +34,8 @@ export type Pilihan = {
     nominal?: number;
     kategori?: string;
     tanggal?: string;
+    /** Sudah dicocokkan dengan wallet milik user saat tawaran dibuat */
+    wallet?: { id: number; nama: string };
   };
 };
 

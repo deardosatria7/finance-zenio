@@ -5,7 +5,11 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { KATEGORI_PEMASUKAN, PemasukanFormSchema } from "@/lib/types";
+import {
+  KATEGORI_PEMASUKAN,
+  PemasukanFormSchema,
+  type WalletPilihan,
+} from "@/lib/types";
 
 import {
   Dialog,
@@ -39,15 +43,18 @@ import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 
 type AddNewPemasukanFormProps = {
+  wallets: WalletPilihan[];
   onSuccess?: () => void;
 };
 
 type ButtonAddNewPengeluaranProps = {
   small_ver?: boolean;
+  wallets: WalletPilihan[];
 };
 
 export function ButtonAddNewPemasukan({
   small_ver = false,
+  wallets,
 }: ButtonAddNewPengeluaranProps) {
   const [open, setOpen] = useState(false);
 
@@ -74,14 +81,20 @@ export function ButtonAddNewPemasukan({
           <DialogHeader>
             <DialogTitle>Tambah Pemasukan</DialogTitle>
           </DialogHeader>
-          <AddNewPemasukanForm onSuccess={() => setOpen(false)} />
+          <AddNewPemasukanForm
+            wallets={wallets}
+            onSuccess={() => setOpen(false)}
+          />
         </DialogContent>
       </Dialog>
     </>
   );
 }
 
-export function AddNewPemasukanForm({ onSuccess }: AddNewPemasukanFormProps) {
+export function AddNewPemasukanForm({
+  wallets,
+  onSuccess,
+}: AddNewPemasukanFormProps) {
   const [loadingStates, setLoadingStates] = useState({ isSubmitting: false });
   const router = useRouter();
   const form = useForm<z.infer<typeof PemasukanFormSchema>>({
@@ -90,6 +103,7 @@ export function AddNewPemasukanForm({ onSuccess }: AddNewPemasukanFormProps) {
       nama_pemasukan: "",
       nominal: 0,
       kategori: "Lainnya",
+      wallet_id: wallets.find((w) => w.isDefault)?.id,
     },
   });
 
@@ -146,6 +160,34 @@ export function AddNewPemasukanForm({ onSuccess }: AddNewPemasukanFormProps) {
                   {KATEGORI_PEMASUKAN.map((k) => (
                     <SelectItem key={k} value={k}>
                       {k}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="wallet_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Wallet</FormLabel>
+              <Select
+                onValueChange={(v) => field.onChange(Number(v))}
+                defaultValue={field.value ? String(field.value) : undefined}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih wallet" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {wallets.map((w) => (
+                    <SelectItem key={w.id} value={String(w.id)}>
+                      {w.nama}
                     </SelectItem>
                   ))}
                 </SelectContent>

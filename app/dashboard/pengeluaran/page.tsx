@@ -10,6 +10,8 @@ import PengeluaranTable from "./components/pengeluaran-table";
 import { ButtonAddNewPengeluaran } from "./components/add-new-pengeluaran";
 import MonthFilter from "@/components/month-filter";
 import ExportButton from "@/components/export-button";
+import { getWallets } from "@/lib/wallets";
+import WalletFilter from "@/components/wallet-filter";
 
 export default async function PengeluaranPage({
   searchParams,
@@ -34,6 +36,15 @@ export default async function PengeluaranPage({
   const filterYear =
     typeof params.year === "string" ? Number(params.year) : null;
 
+  // ?wallet=abc diabaikan, bukan dikirim ke DB sebagai NaN
+  const filterWallet =
+    typeof params.wallet === "string" && Number.isInteger(Number(params.wallet))
+      ? Number(params.wallet)
+      : null;
+  const diWallet =
+    filterWallet !== null ? eq(pengeluaran.walletId, filterWallet) : undefined;
+
+  // Build filter date range for selected month/year
   const { dateFrom, dateTo } = getDateRange(filterMonth, filterYear);
 
   const baseWhere = and(
@@ -43,12 +54,14 @@ export default async function PengeluaranPage({
       : undefined,
     dateFrom ? gte(pengeluaran.createdAt, dateFrom) : undefined,
     dateTo ? lt(pengeluaran.createdAt, dateTo) : undefined,
+    diWallet,
   );
 
-  const [dataPengeluaran, countResult, allTimeResult, monthResult] =
+  const [dataPengeluaran, countResult, allTimeResult, monthResult, wallets] =
     await Promise.all([
       db.query.pengeluaran.findMany({
         where: baseWhere,
+        with: { wallet: { columns: { nama: true } } },
         orderBy: (p, { desc }) => desc(p.createdAt),
         limit,
         offset,
@@ -64,7 +77,7 @@ export default async function PengeluaranPage({
           total: sql<string>`COALESCE(SUM(${pengeluaran.nominal}), 0)`,
         })
         .from(pengeluaran)
-        .where(eq(pengeluaran.userId, session.user.id)),
+        .where(and(eq(pengeluaran.userId, session.user.id), diWallet)),
 
       db
         .select({
@@ -76,9 +89,15 @@ export default async function PengeluaranPage({
             eq(pengeluaran.userId, session.user.id),
             gte(pengeluaran.createdAt, startOfMonth),
             lt(pengeluaran.createdAt, startOfNextMonth),
+            diWallet,
           ),
         ),
+
+      getWallets(session.user.id, { termasukArsip: true }),
     ]);
+
+  // Filter memakai semua wallet (termasuk arsip); form hanya boleh memilih wallet aktif
+  const walletAktif = wallets.filter((w) => w.archivedAt === null);
 
   const totalItems = Number(countResult[0].count);
   const totalPages = Math.ceil(totalItems / limit);
@@ -99,6 +118,7 @@ export default async function PengeluaranPage({
         <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
           <SearchBar />
           <MonthFilter />
+          <WalletFilter wallets={wallets} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="px-5 py-3 border rounded-xl shadow-lg">
@@ -126,15 +146,16 @@ export default async function PengeluaranPage({
         </div>
         <div className="flex items-center gap-2">
           <BackButton className="w-fit" />
-          <ButtonAddNewPengeluaran />
+          <ButtonAddNewPengeluaran wallets={walletAktif} />
           <ExportButton
             type="pengeluaran"
             month={filterMonth ?? undefined}
             year={filterYear ?? undefined}
+            wallet={filterWallet ?? undefined}
           />
         </div>
         <div>
-          <PengeluaranTable data={dataPengeluaran} />
+          <PengeluaranTable data={dataPengeluaran} wallets={walletAktif} />
         </div>
         <div>
           {dataPengeluaran.length > 0 && (

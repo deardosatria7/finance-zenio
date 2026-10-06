@@ -11,6 +11,7 @@ import { ArrowUpRight, ArrowDownRight, Wallet } from "lucide-react";
 import Link from "next/link";
 import { formatRupiah, formatDate } from "@/lib/utils";
 import FinanceChart from "@/components/finance-chart";
+import { getSaldoPerWallet } from "@/lib/wallets";
 
 const MONTH_LABELS = [
   "Jan",
@@ -29,6 +30,8 @@ const MONTH_LABELS = [
 
 export default async function DashboardPage() {
   const session = await getUserSessionSSR();
+  const saldoWallet = await getSaldoPerWallet(session.user.id);
+  const walletAktif = saldoWallet.filter((w) => w.archivedAt === null);
   let pengeluaranAll: Pengeluaran[] = [];
   let pemasukanAll: Pemasukan[] = [];
 
@@ -50,7 +53,9 @@ export default async function DashboardPage() {
     (sum, item) => sum + Number.parseFloat(item.nominal),
     0,
   );
-  const saldo = totalPemasukan - totalPengeluaran;
+  // Saldo awal semua wallet (termasuk arsip) ikut dihitung, sama seperti getSaldo()
+  const totalSaldoAwal = saldoWallet.reduce((sum, w) => sum + w.saldoAwal, 0);
+  const saldo = totalSaldoAwal + totalPemasukan - totalPengeluaran;
 
   const recentPemasukan = [...pemasukanAll]
     .sort(
@@ -188,6 +193,40 @@ export default async function DashboardPage() {
           </Card>
         </div>
 
+        {/* Saldo per wallet */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold">Saldo per Wallet</h2>
+            <Link
+              href="/dashboard/wallet"
+              className="text-sm text-muted-foreground hover:underline"
+            >
+              Kelola wallet
+            </Link>
+          </div>
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+            {walletAktif.map((w) => (
+              <Card key={w.id}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {w.nama}
+                    {w.isDefault && " (default)"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div
+                    className={`text-xl font-bold ${
+                      w.saldo < 0 ? "text-rose-600 dark:text-rose-400" : ""
+                    }`}
+                  >
+                    {formatRupiah(w.saldo)}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
         {/* Charts */}
         <div className="mb-8">
           <FinanceChart monthlyData={monthlyData} categoryData={categoryData} />
@@ -200,7 +239,7 @@ export default async function DashboardPage() {
               <CardTitle className="text-lg font-semibold">
                 Pemasukan Terbaru
               </CardTitle>
-              <ButtonAddNewPemasukan small_ver={true} />
+              <ButtonAddNewPemasukan small_ver={true} wallets={walletAktif} />
             </CardHeader>
             <CardContent>
               {recentPemasukan.length > 0 ? (
@@ -240,7 +279,7 @@ export default async function DashboardPage() {
               <CardTitle className="text-lg font-semibold">
                 Pengeluaran Terbaru
               </CardTitle>
-              <ButtonAddNewPengeluaran small_ver={true} />
+              <ButtonAddNewPengeluaran small_ver={true} wallets={walletAktif} />
             </CardHeader>
             <CardContent>
               {recentPengeluaran.length > 0 ? (

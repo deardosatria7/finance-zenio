@@ -10,6 +10,8 @@ import { ButtonAddNewPemasukan } from "./components/add-new-pemasukan";
 import Pagination from "@/components/pagination";
 import MonthFilter from "@/components/month-filter";
 import ExportButton from "@/components/export-button";
+import { getWallets } from "@/lib/wallets";
+import WalletFilter from "@/components/wallet-filter";
 
 export default async function PemasukanPage({
   searchParams,
@@ -31,6 +33,14 @@ export default async function PemasukanPage({
   const filterYear =
     typeof params.year === "string" ? Number(params.year) : null;
 
+  // ?wallet=abc diabaikan, bukan dikirim ke DB sebagai NaN
+  const filterWallet =
+    typeof params.wallet === "string" && Number.isInteger(Number(params.wallet))
+      ? Number(params.wallet)
+      : null;
+  const diWallet =
+    filterWallet !== null ? eq(pemasukan.walletId, filterWallet) : undefined;
+
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -45,12 +55,14 @@ export default async function PemasukanPage({
       : undefined,
     dateFrom ? gte(pemasukan.createdAt, dateFrom) : undefined,
     dateTo ? lt(pemasukan.createdAt, dateTo) : undefined,
+    diWallet,
   );
 
-  const [dataPemasukan, countResult, allTimeResult, monthResult] =
+  const [dataPemasukan, countResult, allTimeResult, monthResult, wallets] =
     await Promise.all([
       db.query.pemasukan.findMany({
         where: baseWhere,
+        with: { wallet: { columns: { nama: true } } },
         orderBy: (p, { desc }) => desc(p.createdAt),
         limit,
         offset,
@@ -66,7 +78,7 @@ export default async function PemasukanPage({
           total: sql<string>`COALESCE(SUM(${pemasukan.nominal}), 0)`,
         })
         .from(pemasukan)
-        .where(eq(pemasukan.userId, session.user.id)),
+        .where(and(eq(pemasukan.userId, session.user.id), diWallet)),
 
       db
         .select({
@@ -78,9 +90,15 @@ export default async function PemasukanPage({
             eq(pemasukan.userId, session.user.id),
             gte(pemasukan.createdAt, startOfMonth),
             lt(pemasukan.createdAt, startOfNextMonth),
+            diWallet,
           ),
         ),
+
+      getWallets(session.user.id, { termasukArsip: true }),
     ]);
+
+  // Filter memakai semua wallet (termasuk arsip); form hanya boleh memilih wallet aktif
+  const walletAktif = wallets.filter((w) => w.archivedAt === null);
 
   const totalItems = Number(countResult[0].count);
   const totalPages = Math.ceil(totalItems / limit);
@@ -99,6 +117,7 @@ export default async function PemasukanPage({
         <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
           <SearchBar />
           <MonthFilter />
+          <WalletFilter wallets={wallets} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="px-5 py-3 border rounded-xl shadow-lg">
@@ -126,15 +145,16 @@ export default async function PemasukanPage({
         </div>
         <div className="flex items-center gap-2">
           <BackButton className="w-fit" />
-          <ButtonAddNewPemasukan />
+          <ButtonAddNewPemasukan wallets={walletAktif} />
           <ExportButton
             type="pemasukan"
             month={filterMonth ?? undefined}
             year={filterYear ?? undefined}
+            wallet={filterWallet ?? undefined}
           />
         </div>
         <div>
-          <PemasukanTable data={dataPemasukan} />
+          <PemasukanTable data={dataPemasukan} wallets={walletAktif} />
         </div>
         <div>
           {dataPemasukan.length > 0 && (
