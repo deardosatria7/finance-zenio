@@ -1,8 +1,13 @@
 "use server";
 
 import { z } from "zod";
-import { EditWalletSchema, WalletFormSchema } from "../types";
+import {
+  EditWalletSchema,
+  TransferFormSchema,
+  WalletFormSchema,
+} from "../types";
 import { getUserSessionSSR } from "../session";
+import { addTransfer, deleteTransfer } from "../transfers";
 import {
   addWallet,
   arsipkanWallet,
@@ -63,4 +68,16 @@ export async function PulihkanWallet(wallet_id: number) {
 
 export async function DeleteWallet(wallet_id: number) {
   return jalankan((userId) => deleteWallet(userId, IdSchema.parse(wallet_id)));
+}
+
+export async function AddTransfer(data: z.infer<typeof TransferFormSchema>) {
+  return jalankan((userId) =>
+    addTransfer(userId, TransferFormSchema.parse(data)),
+  );
+}
+
+export async function DeleteTransfer(transfer_id: number) {
+  return jalankan((userId) =>
+    deleteTransfer(userId, IdSchema.parse(transfer_id)),
+  );
 }

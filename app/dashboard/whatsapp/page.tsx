@@ -16,6 +16,7 @@ const CONTOH_PESAN = [
   "kemarin beli bensin 50rb",
   "gajian 8,5jt",
   "kopi 20rb pakai gopay",
+  "transfer 500rb dari bca ke gopay",
   "hapus parkir kemarin",
   "saldo aku berapa?",
 ];

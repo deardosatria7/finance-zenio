@@ -9,7 +9,10 @@ import {
 } from "@/components/ui/card";
 import { getUserSessionSSR } from "@/lib/session";
 import { formatRupiah } from "@/lib/utils";
+import { getTransfers } from "@/lib/transfers";
 import { getSaldoPerWallet } from "@/lib/wallets";
+import { TransferFormDialog } from "./components/transfer-form-dialog";
+import { TransferList } from "./components/transfer-list";
 import { WalletActions } from "./components/wallet-actions";
 import { WalletFormDialog } from "./components/wallet-form-dialog";
 
@@ -17,7 +20,10 @@ type SaldoWallet = Awaited<ReturnType<typeof getSaldoPerWallet>>[number];
 
 export default async function WalletPage() {
   const session = await getUserSessionSSR();
-  const wallets = await getSaldoPerWallet(session.user.id);
+  const [wallets, transfers] = await Promise.all([
+    getSaldoPerWallet(session.user.id),
+    getTransfers(session.user.id),
+  ]);
 
   const aktif = wallets.filter((w) => w.archivedAt === null);
   const arsip = wallets.filter((w) => w.archivedAt !== null);
@@ -28,6 +34,13 @@ export default async function WalletPage() {
       <div className="flex items-center gap-2">
         <BackButton className="w-fit" />
         <WalletFormDialog />
+        <TransferFormDialog
+          wallets={aktif.map(({ id, nama, isDefault }) => ({
+            id,
+            nama,
+            isDefault,
+          }))}
+        />
       </div>
 
       <div className="px-5 py-3 border rounded-xl shadow-lg">
@@ -55,6 +68,11 @@ export default async function WalletPage() {
           </div>
         </>
       )}
+
+      <h2 className="text-sm font-medium text-muted-foreground">
+        Transfer terakhir
+      </h2>
+      <TransferList transfers={transfers} />
     </div>
   );
 }

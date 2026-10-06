@@ -10,8 +10,8 @@ const KUOTA_DEFAULT = 100;
 
 export type Jenis = "pemasukan" | "pengeluaran";
 
-/** Transaksi yang baru dicatat, target perintah "batal" */
-export type Terakhir = { jenis: Jenis; id: number };
+/** Transaksi atau transfer yang baru dicatat, target perintah "batal" */
+export type Terakhir = { jenis: Jenis | "transfer"; id: number };
 
 export type Kandidat = {
   jenis: Jenis;
