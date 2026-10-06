@@ -17,7 +17,8 @@ import {
   getWhatsappRateLimiter,
 } from "../rate-limiter";
 import { formatRupiah } from "../utils";
-import { getSaldoPerWallet, getWallets } from "../wallets";
+import { addTransfer, deleteTransfer } from "../transfers";
+import { getSaldoPerWallet, getWallets, WalletError } from "../wallets";
 import { normalkanKategori, parseIntent, type Intent } from "./intent";
 import {
   getUserIdByChat,
@@ -62,6 +63,7 @@ const BANTUAN = [
   "• kemarin bensin 50rb",
   "• gajian 8,5jt",
   "• kopi 20rb pakai gopay",
+  "• transfer 500rb dari bca ke gopay",
   "• yang bensin tadi ternyata 60rb",
   "• hapus parkir kemarin",
   "• saldo",
@@ -109,17 +111,19 @@ async function walletDariIntent(
 
 async function balasSaldo(jid: string, userId: string, wallet?: WalletUser) {
   if (wallet) {
-    const { totalPemasukan, totalPengeluaran, saldo } = await getSaldo(
-      userId,
-      wallet.id,
-    );
+    const { totalPemasukan, totalPengeluaran, transferBersih, saldo } =
+      await getSaldo(userId, wallet.id);
     await kirimPesan(
       jid,
       [
         `Saldo ${wallet.nama}: ${formatRupiah(saldo)}`,
         `Total pemasukan: ${formatRupiah(totalPemasukan)}`,
         `Total pengeluaran: ${formatRupiah(totalPengeluaran)}`,
-      ].join("\n"),
+        transferBersih !== 0 &&
+          `Transfer bersih: ${transferBersih > 0 ? "+" : "-"}${formatRupiah(Math.abs(transferBersih))}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
     );
     return;
   }
@@ -204,11 +208,64 @@ async function simpanTambah(
   );
 }
 
-async function hapusTransaksi(userId: string, jenis: Jenis, id: number) {
+async function simpanTransfer(
+  jid: string,
+  userId: string,
+  intent: Extract<Intent, { aksi: "transfer" }>,
+  wallets: WalletUser[],
+) {
+  const ke = await walletDariIntent(jid, wallets, intent.ke);
+  if (!ke) return;
+  const disebut = await walletDariIntent(jid, wallets, intent.dari);
+  if (disebut === null) return;
+
+  const dari = disebut ?? wallets.find((w) => w.isDefault);
+  if (!dari) throw new Error("Wallet default tidak ditemukan");
+  if (dari.id === ke.id) {
+    await kirimPesan(
+      jid,
+      `Wallet asal dan tujuan sama-sama ${ke.nama}. Sebutkan asalnya, misalnya ` +
+        `"transfer 100rb dari BCA ke ${ke.nama}".`,
+    );
+    return;
+  }
+
+  let baris;
+  try {
+    baris = await addTransfer(userId, {
+      dari_wallet_id: dari.id,
+      ke_wallet_id: ke.id,
+      nominal: intent.nominal,
+      catatan: intent.catatan,
+      tanggal: tanggalKeDate(intent.tanggal),
+    });
+  } catch (error) {
+    if (!(error instanceof WalletError)) throw error;
+    await kirimPesan(jid, error.message);
+    return;
+  }
+
+  await simpanTerakhir(jid, { jenis: "transfer", id: baris.id });
+
+  await kirimPesan(
+    jid,
+    `Transfer tercatat: ${dari.nama} → ${ke.nama} ${formatRupiah(intent.nominal)}, ` +
+      `${formatTanggalWIB(baris.createdAt)}\n\n` +
+      'Balas "batal" kalau salah.',
+  );
+}
+
+async function hapusTransaksi(
+  userId: string,
+  jenis: Jenis | "transfer",
+  id: number,
+) {
   if (jenis === "pemasukan") {
     await deletePemasukan(userId, id);
-  } else {
+  } else if (jenis === "pengeluaran") {
     await deletePengeluaran(userId, id);
+  } else {
+    await deleteTransfer(userId, id);
   }
 }
 
@@ -350,6 +407,9 @@ async function jalankanIntent(
     case "tambah":
       await simpanTambah(jid, userId, intent, wallets);
       return;
+    case "transfer":
+      await simpanTransfer(jid, userId, intent, wallets);
+      return;
     case "saldo": {
       const wallet = await walletDariIntent(jid, wallets, intent.wallet);
       if (wallet === null) return;
@@ -458,7 +518,12 @@ async function tanganiBatal(jid: string, userId: string) {
   try {
     // Kepemilikan tetap dicek di WHERE service, tidak dipercaya dari Redis
     await hapusTransaksi(userId, terakhir.jenis, terakhir.id);
-    await kirimPesan(jid, "Dibatalkan, transaksi dihapus.");
+    await kirimPesan(
+      jid,
+      terakhir.jenis === "transfer"
+        ? "Dibatalkan, transfer dihapus."
+        : "Dibatalkan, transaksi dihapus.",
+    );
   } catch (error) {
     console.warn(`WhatsApp batal ${terakhir.jenis}:${terakhir.id} gagal:`, error);
     await kirimPesan(jid, "Transaksi itu sudah tidak ada.");

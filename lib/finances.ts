@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { pemasukan, pengeluaran, wallet } from "@/db/schema";
-import { and, desc, eq, gte, ilike, lt, sql } from "drizzle-orm";
+import { pemasukan, pengeluaran, transfer, wallet } from "@/db/schema";
+import { and, desc, eq, gte, ilike, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getRateLimiter } from "./rate-limiter";
 import { cekWalletAktif } from "./wallets";
@@ -141,10 +141,11 @@ export async function deletePengeluaran(userId: string, id: number) {
 
 /**
  * Total pemasukan, pengeluaran, dan saldo (termasuk saldo awal). Tanpa `walletId` berarti semua
- * wallet, termasuk yang diarsipkan, karena uangnya tetap ada.
+ * wallet, termasuk yang diarsipkan, karena uangnya tetap ada. Transfer hanya dihitung untuk satu
+ * wallet; untuk semua wallet hasil bersihnya selalu nol.
  */
 export async function getSaldo(userId: string, walletId?: number) {
-  const [[masuk], [keluar], [awal]] = await Promise.all([
+  const [[masuk], [keluar], [awal], [tf]] = await Promise.all([
     db
       .select({ total: sql<string>`COALESCE(SUM(${pemasukan.nominal}), 0)` })
       .from(pemasukan)
@@ -174,17 +175,37 @@ export async function getSaldo(userId: string, walletId?: number) {
           walletId !== undefined ? eq(wallet.id, walletId) : undefined,
         ),
       ),
+    walletId === undefined
+      ? [{ bersih: "0" }]
+      : db
+          .select({
+            bersih: sql<string>`COALESCE(SUM(CASE WHEN ${transfer.keWalletId} = ${walletId}
+              THEN ${transfer.nominal} ELSE -${transfer.nominal} END), 0)`,
+          })
+          .from(transfer)
+          .where(
+            and(
+              eq(transfer.userId, userId),
+              or(
+                eq(transfer.dariWalletId, walletId),
+                eq(transfer.keWalletId, walletId),
+              ),
+            ),
+          ),
   ]);
 
   const totalPemasukan = Number(masuk.total);
   const totalPengeluaran = Number(keluar.total);
   const saldoAwal = Number(awal.total);
+  // Transfer masuk dikurangi transfer keluar
+  const transferBersih = Number(tf.bersih);
 
   return {
     totalPemasukan,
     totalPengeluaran,
     saldoAwal,
-    saldo: saldoAwal + totalPemasukan - totalPengeluaran,
+    transferBersih,
+    saldo: saldoAwal + totalPemasukan - totalPengeluaran + transferBersih,
   };
 }
 

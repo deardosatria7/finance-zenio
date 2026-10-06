@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { pemasukan, pengeluaran, wallet } from "@/db/schema";
+import { pemasukan, pengeluaran, transfer, wallet } from "@/db/schema";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { EditWalletSchema, WalletFormSchema } from "./types";
@@ -63,7 +63,10 @@ export async function getWallets(
   });
 }
 
-/** Semua wallet (termasuk arsip) beserta saldonya: saldo awal + pemasukan − pengeluaran */
+/**
+ * Semua wallet (termasuk arsip) beserta saldonya:
+ * saldo awal + pemasukan − pengeluaran + transfer masuk − transfer keluar
+ */
 export async function getSaldoPerWallet(userId: string) {
   await pastikanWalletDefault(userId);
 
@@ -87,6 +90,26 @@ export async function getSaldoPerWallet(userId: string) {
     .groupBy(pengeluaran.walletId)
     .as("keluar");
 
+  const tfMasuk = db
+    .select({
+      walletId: transfer.keWalletId,
+      total: sql<string>`sum(${transfer.nominal})`.as("total_tf_masuk"),
+    })
+    .from(transfer)
+    .where(eq(transfer.userId, userId))
+    .groupBy(transfer.keWalletId)
+    .as("tf_masuk");
+
+  const tfKeluar = db
+    .select({
+      walletId: transfer.dariWalletId,
+      total: sql<string>`sum(${transfer.nominal})`.as("total_tf_keluar"),
+    })
+    .from(transfer)
+    .where(eq(transfer.userId, userId))
+    .groupBy(transfer.dariWalletId)
+    .as("tf_keluar");
+
   const rows = await db
     .select({
       id: wallet.id,
@@ -94,11 +117,14 @@ export async function getSaldoPerWallet(userId: string) {
       isDefault: wallet.isDefault,
       archivedAt: wallet.archivedAt,
       saldoAwal: wallet.saldoAwal,
-      saldo: sql<string>`${wallet.saldoAwal} + coalesce(${masuk.total}, 0) - coalesce(${keluar.total}, 0)`,
+      saldo: sql<string>`${wallet.saldoAwal} + coalesce(${masuk.total}, 0) - coalesce(${keluar.total}, 0)
+        + coalesce(${tfMasuk.total}, 0) - coalesce(${tfKeluar.total}, 0)`,
     })
     .from(wallet)
     .leftJoin(masuk, eq(masuk.walletId, wallet.id))
     .leftJoin(keluar, eq(keluar.walletId, wallet.id))
+    .leftJoin(tfMasuk, eq(tfMasuk.walletId, wallet.id))
+    .leftJoin(tfKeluar, eq(tfKeluar.walletId, wallet.id))
     .where(eq(wallet.userId, userId))
     .orderBy(...URUTAN_WALLET);
 

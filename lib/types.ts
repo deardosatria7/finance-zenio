@@ -90,3 +90,19 @@ export const WalletFormSchema = z.object({
 export const EditWalletSchema = WalletFormSchema.extend({
   id: IdSchema,
 });
+
+export const TransferFormSchema = z
+  .object({
+    dari_wallet_id: WalletIdSchema,
+    ke_wallet_id: WalletIdSchema,
+    nominal: NominalSchema,
+    catatan: z
+      .string()
+      .trim()
+      .max(MAX_NAMA, `Maksimal ${MAX_NAMA} karakter`)
+      .optional(),
+  })
+  .refine((t) => t.dari_wallet_id !== t.ke_wallet_id, {
+    message: "Wallet tujuan harus beda dengan wallet asal",
+    path: ["ke_wallet_id"],
+  });

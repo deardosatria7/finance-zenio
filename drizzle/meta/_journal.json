@@ -64,6 +64,13 @@
       "when": 1791274523548,
       "tag": "0008_wallet_wajib",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791275602868,
+      "tag": "0009_tambah_transfer",
+      "breakpoints": true
     }
   ]
 }

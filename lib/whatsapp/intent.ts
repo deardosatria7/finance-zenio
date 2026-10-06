@@ -69,6 +69,15 @@ const IntentSchema = z.discriminatedUnion("aksi", [
     kataKunci: z.string().min(1),
     tanggal: Opsional(TanggalSchema),
   }),
+  z.object({
+    aksi: z.literal("transfer"),
+    nominal: NominalSchema,
+    // Kosong = wallet default
+    dari: Opsional(WalletSchema),
+    ke: WalletSchema,
+    catatan: Opsional(NamaSchema),
+    tanggal: Opsional(TanggalSchema),
+  }),
   z.object({ aksi: z.literal("saldo"), wallet: Opsional(WalletSchema) }),
   z.object({
     aksi: z.literal("riwayat"),
@@ -92,6 +101,7 @@ Bentuk JSON sesuai "aksi":
 - {"aksi":"tambah","jenis":"pemasukan|pengeluaran","nama":string,"nominal":number,"kategori":string,"tanggal":"YYYY-MM-DD"|null,"wallet":string|null}
 - {"aksi":"edit","jenis":"pemasukan|pengeluaran"|null,"kataKunci":string,"tanggal":"YYYY-MM-DD"|null,"perubahan":{"nama"?:string,"nominal"?:number,"kategori"?:string,"tanggal"?:"YYYY-MM-DD","wallet"?:string}}
 - {"aksi":"hapus","jenis":"pemasukan|pengeluaran"|null,"kataKunci":string,"tanggal":"YYYY-MM-DD"|null}
+- {"aksi":"transfer","nominal":number,"dari":string|null,"ke":string,"catatan":string|null,"tanggal":"YYYY-MM-DD"|null}
 - {"aksi":"saldo","wallet":string|null}
 - {"aksi":"riwayat","jenis":"pemasukan|pengeluaran"|null,"dari":"YYYY-MM-DD"|null,"sampai":"YYYY-MM-DD"|null,"wallet":string|null}
 - {"aksi":"tidak_dikenal"}  (kalau pesan tidak ada hubungannya dengan keuangan)
@@ -110,6 +120,9 @@ Aturan:
   Isi "wallet" hanya kalau pesan menyebut sumber atau tujuan uangnya ("pakai gopay", "dari BCA",
   "masuk ke rekening mandiri"). Tulis persis seperti di daftar kalau ada yang cocok; kalau tidak
   ada yang cocok, tulis apa adanya. Kalau tidak disebut, null.
+- "transfer" hanya untuk memindahkan uang antar wallet milik user sendiri (pindah saldo, top up
+  e-wallet, tarik tunai). "dari" null kalau asalnya tidak disebut. Kirim uang ke orang lain
+  ("transfer 200rb ke ibu") itu pengeluaran, bukan transfer.
 
 Contoh:
 "makan siang 25rb" -> {"aksi":"tambah","jenis":"pengeluaran","nama":"Makan siang","nominal":25000,"kategori":"Makanan & Minuman","tanggal":null}
@@ -119,6 +132,9 @@ Contoh:
 "yang bensin tadi ternyata 60rb" -> {"aksi":"edit","jenis":"pengeluaran","kataKunci":"bensin","tanggal":null,"perubahan":{"nominal":60000}}
 "ganti kategori kopi jadi hiburan" -> {"aksi":"edit","jenis":"pengeluaran","kataKunci":"kopi","tanggal":null,"perubahan":{"kategori":"Hiburan"}}
 "yang kopi tadi pindahin ke cash" -> {"aksi":"edit","jenis":"pengeluaran","kataKunci":"kopi","tanggal":null,"perubahan":{"wallet":"Cash"}}
+"transfer 500rb dari bca ke gopay" -> {"aksi":"transfer","nominal":500000,"dari":"BCA","ke":"GoPay","catatan":null,"tanggal":null}
+"top up gopay 100rb" -> {"aksi":"transfer","nominal":100000,"dari":null,"ke":"GoPay","catatan":"Top up","tanggal":null}
+"transfer 200rb ke ibu" -> {"aksi":"tambah","jenis":"pengeluaran","nama":"Transfer ke ibu","nominal":200000,"kategori":"Lainnya","tanggal":null}
 "hapus parkir kemarin" -> {"aksi":"hapus","jenis":"pengeluaran","kataKunci":"parkir","tanggal":"<tanggal kemarin>"}
 "sisa duitku berapa" -> {"aksi":"saldo","wallet":null}
 "saldo bca berapa" -> {"aksi":"saldo","wallet":"BCA"}
