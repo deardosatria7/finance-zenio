@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   unique,
   foreignKey,
+  check,
   numeric,
   serial,
 } from "drizzle-orm/pg-core";
@@ -173,6 +174,44 @@ export const pemasukan = pgTable(
       foreignColumns: [wallet.id, wallet.userId],
     }),
     index("pemasukan_wallet_id_idx").on(table.walletId),
+  ],
+);
+
+// TABLE TRANSFER: pindah uang antar wallet milik user yang sama. Tabel terpisah supaya transfer
+// tidak ikut terhitung sebagai pemasukan/pengeluaran di laporan.
+export const transfer = pgTable(
+  "transfer",
+  {
+    id: serial("id").primaryKey(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    dariWalletId: integer("dari_wallet_id").notNull(),
+    keWalletId: integer("ke_wallet_id").notNull(),
+    nominal: numeric("nominal", { precision: 15, scale: 2 }).notNull(),
+    catatan: text("catatan"),
+  },
+  (table) => [
+    // Kedua wallet harus milik user yang sama dengan transfernya
+    foreignKey({
+      name: "transfer_dari_wallet_fk",
+      columns: [table.dariWalletId, table.userId],
+      foreignColumns: [wallet.id, wallet.userId],
+    }),
+    foreignKey({
+      name: "transfer_ke_wallet_fk",
+      columns: [table.keWalletId, table.userId],
+      foreignColumns: [wallet.id, wallet.userId],
+    }),
+    check(
+      "transfer_wallet_beda_ck",
+      sql`${table.dariWalletId} <> ${table.keWalletId}`,
+    ),
+    check("transfer_nominal_positif_ck", sql`${table.nominal} > 0`),
+    index("transfer_user_id_created_at_idx").on(table.userId, table.createdAt),
+    index("transfer_dari_wallet_id_idx").on(table.dariWalletId),
+    index("transfer_ke_wallet_id_idx").on(table.keWalletId),
   ],
 );
 
